@@ -5,10 +5,35 @@ import { Building2, ArrowRight, Lock } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
+  const baseurl = "http://localhost:3000/auth/login";
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/dashboard');
+    console.log('Enviando datos de login:', {
+      email: (e.target as any).email.value,
+      password: (e.target as any).password.value,
+    });
+    fetch(baseurl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: (e.target as any).email.value,
+        password: (e.target as any).password.value,
+      }),
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Error en la autenticación');
+        }
+        navigate('/dashboard');
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Usuario y/o contraseña incorrectos. Por favor, inténtalo de nuevo.');
+      });
+    
   };
 
   return (

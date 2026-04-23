@@ -19,6 +19,7 @@ export const router = createBrowserRouter([
     Component: DashboardLayout,
     children: [
       { index: true, Component: Dashboard },
+      { path: "dashboard", Component: Dashboard },
       { path: "map", Component: MapView },
       { path: "reservation", Component: Reservation },
       { path: "check-in", Component: CheckIn },
