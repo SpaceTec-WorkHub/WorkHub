@@ -1,7 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { Download, AlertTriangle, Lock, Unlock, Calendar, Users } from 'lucide-react';
-
 const occupancyData = [
   { name: '08:00', oficinas: 20, parking: 10 },
   { name: '10:00', oficinas: 55, parking: 45 },
@@ -20,7 +19,89 @@ const zoneData = [
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
+
 export default function Admin() {
+  const [usuarios, setUsuarios] = useState([]);
+  const [nombre, setNombre] = useState('');
+  const [correo, setCorreo] = useState('');
+  const [rol, setRol] = useState('1');
+
+  const agregarUsuario = async (e: React.FormEvent) => {
+  e.preventDefault();
+  console.log("BOTON FUNCIONANDO");
+
+  try {
+    const response = await fetch('http://localhost:3001/users', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    email: correo,
+    password: '123456',
+    full_name: nombre,
+    user_type: 'internal',
+    status: 'active',
+    role_id: Number(rol)
+  })
+});
+
+if (!response.ok) {
+  const err = await response.text();
+  console.error("Error backend:", err);
+  alert("Error al crear usuario");
+  return;
+}
+
+    const data = await response.json();
+    console.log('Usuario agregado:', data);
+    console.log(data);
+
+    console.log(data);
+    if (!response.ok) {
+    alert("Error al crear usuario");
+    return;
+}
+
+    cargarUsuarios();
+    setVentanaAgregar(false);
+
+    setNombre('');
+    setCorreo('');
+    setRol('1');
+
+  } catch (error) {
+    console.error('Error agregando usuario:', error);
+  }
+};
+
+  const [ventana_usuarios, setventana_usuarios] = useState<boolean>(false);
+  useEffect(() => {
+  if (ventana_usuarios) {
+  console.log("Abriendo ventana de gestión de usuarios...");
+}}, [ventana_usuarios]);
+
+  const [ventanaAgregar, setVentanaAgregar] = useState(false);
+  useEffect(() => {
+  if (ventanaAgregar) {
+  console.log("Abriendo ventana de agregación de usuarios...");
+}}, [ventanaAgregar]);
+
+  const cargarUsuarios = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/users')
+      const data = await response.json();
+      console.log("USUARIOS BACKEND:", data);
+      setUsuarios(data);
+    } catch (error) {
+      console.error('Error al cargar usuarios:', error);
+    }
+  };
+
+  const abrirVentanaUsuarios = () => {
+    setventana_usuarios(true);
+    cargarUsuarios();
+  }
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
@@ -145,12 +226,88 @@ export default function Admin() {
                <h4 className="font-semibold">Gestión de Usuarios</h4>
              </div>
              <p className="text-xs text-slate-500 mb-3">Administra permisos y accesos VIP.</p>
-             <button className="w-full py-2 bg-slate-700 text-white text-xs font-bold rounded hover:bg-slate-800 transition-colors">
+             <button className="w-full py-2 bg-slate-700 text-white text-xs font-bold rounded hover:bg-slate-800 transition-colors" onClick={() => abrirVentanaUsuarios()}>
                Ver Usuarios
              </button>
            </div>
+           
         </div>
       </div>
+      {ventana_usuarios && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Gestión de Usuarios</h2>
+            <p className="text-sm text-slate-500 mb-6">Aquí puedes administrar los usuarios registrados en el sistema.</p>
+            {/* llamadoback*/}
+            <ul className="space-y-4 mb-6">
+            {usuarios.map((user) => (
+              <li
+                key={user.user_id}
+                className="flex items-center justify-between"
+              >
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white">
+                    {user.full_name}
+                  </p>
+
+                  <p className="text-xs text-slate-500">
+                    {user.email}
+                  </p>
+                </div>
+
+                <button className="px-3 py-1 bg-red-600 text-white text-xs rounded">
+                  Eliminar
+                </button>
+              </li>
+            ))}
+
+            <button
+              className="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700 transition-colors"
+              onClick={() => setVentanaAgregar(true)}
+            >
+              + Agregar Usuario
+            </button>
+          </ul>
+            <button className="mt-4 px-4 py-2 bg-red-600 text-white text-sm font-bold rounded hover:bg-red-700 transition-colors" onClick={() => setventana_usuarios(false)}>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+        {ventanaAgregar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Agregar Nuevo Usuario</h2>
+            <p className="text-sm text-slate-500 mb-6">Completa el formulario para agregar un nuevo usuario al sistema.</p>
+            {/* llamadoback */}
+            <form onSubmit={agregarUsuario} className="space-y-4">
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre Completo</label>
+                
+                <input type="text" className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded focus:outline-none focus:ring focus:ring-blue-200" placeholder="Ej: Ana Martínez" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Correo Electrónico</label>
+                <input type="email" className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded focus:outline-none focus:ring focus:ring-blue-200" placeholder="Ej: ana@martinez.com" value={correo} onChange={(e) => setCorreo(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Rol</label>
+                <select className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded focus:outline-none focus:ring focus:ring-blue-200" value={rol} onChange={(e) => setRol(e.target.value)}>
+                  <option value="1">Usuario Regular</option>
+                  <option value="2">Administrador</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full py-2 bg-green-600 text-white text-sm font-bold rounded hover:bg-green-700 transition-colors">
+                Agregar Usuario
+              </button>
+            </form>
+            <button className="mt-4 px-4 py-2 bg-red-600 text-white text-sm font-bold rounded hover:bg-red-700 transition-colors" onClick={() => setVentanaAgregar(false)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
