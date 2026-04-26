@@ -1,18 +1,21 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Search, 
-  Filter, 
-  Monitor, 
-  Car, 
-  User, 
-  Clock, 
+import {
+  Search,
+  Filter,
+  Monitor,
+  Car,
+  User,
+  Clock,
   Calendar as CalendarIcon,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  Zap
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { toast } from 'sonner';
+import { getSpace, ApiSpace } from '../../services/space';
+import { createReservation } from '../../services/reservation';
 
 // Types for our map items
 type SpotStatus = 'available' | 'occupied' | 'reserved' | 'blocked';
@@ -27,6 +30,7 @@ interface Spot {
 }
 
 // Generate some mock data
+/*
 const generateSpots = (type: SpotType, count: number): Spot[] => {
   return Array.from({ length: count }).map((_, i) => {
     const r = Math.random();
@@ -47,29 +51,65 @@ const generateSpots = (type: SpotType, count: number): Spot[] => {
 
 const desks = generateSpots('desk', 48);
 const parkingSpots = generateSpots('parking', 30);
-
+*/
 export default function MapView() {
+  const [spots, setSpots] = useState<Spot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'office' | 'parking'>('office');
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [filterZone, setFilterZone] = useState<string>('all');
 
-  const currentSpots = activeTab === 'office' ? desks : parkingSpots;
+  const currentSpots = spots.filter((spot) =>
+    activeTab === 'office' ? spot.type === 'desk' : spot.type === 'parking'
+  );
+
+  useEffect(() => {
+    getSpace()
+      .then((data) => {
+        const mappedSpots: Spot[] = data.map((space) => ({
+          id: String(space.space_id),
+          type: space.space_type?.name?.toLowerCase().includes('parking')
+            ? 'parking'
+            : 'desk',
+          status:
+            space.status === 'maintenance'
+              ? 'blocked'
+              : (space.status as SpotStatus),
+          label: space.code,
+          zone: space.zone?.name || 'Sin zona',
+        }));
+
+        setSpots(mappedSpots);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleSpotClick = (spot: Spot) => {
     if (spot.status === 'blocked' || spot.status === 'occupied') {
       toast.error(`El espacio ${spot.label} no está disponible.`);
       return;
     }
+
     setSelectedSpot(spot);
   };
 
-  const handleReserve = () => {
-    if (selectedSpot) {
-      toast.success(`¡Reserva confirmada para ${selectedSpot.label}!`);
-      setSelectedSpot(null);
-    }
-  };
+  const handleReserve = async () => {
+  if (!selectedSpot) return;
 
+  try {
+    await createReservation(Number(selectedSpot.id));
+    toast.success(`¡Reserva confirmada para ${selectedSpot.label}!`);
+    setSelectedSpot(null);
+  } catch (err) {
+    toast.error('No se pudo crear la reserva.');
+    console.error(err);
+  }
+};
+
+  if (loading) return <p>Cargando mapa...</p>;
+  if (error) return <p>Error: {error}</p>;
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
       {/* Controls Header */}
@@ -100,17 +140,17 @@ export default function MapView() {
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-            <input 
-              type="text" 
-              placeholder="Buscar compañero..." 
+            <input
+              type="text"
+              placeholder="Buscar compañero..."
               className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
             />
           </div>
-          
+
           <button className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500">
             <Filter size={20} />
           </button>
-          
+
           <div className="h-6 w-px bg-slate-200 mx-2"></div>
 
           <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
@@ -134,7 +174,7 @@ export default function MapView() {
           </div>
 
           <div className="flex-1 overflow-auto p-8 bg-slate-50 flex items-center justify-center">
-            <motion.div 
+            <motion.div
               key={activeTab}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -175,7 +215,7 @@ export default function MapView() {
         {/* Sidebar Info Panel */}
         <AnimatePresence>
           {selectedSpot && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
@@ -218,15 +258,15 @@ export default function MapView() {
                   <button className="px-3 py-2 text-sm border border-blue-600 bg-blue-50 text-blue-700 rounded-lg font-medium">AM</button>
                   <button className="px-3 py-2 text-sm border border-slate-200 hover:border-blue-300 text-slate-600 rounded-lg">PM</button>
                 </div>
-                
-                <button 
+
+                <button
                   onClick={handleReserve}
                   className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
                 >
                   <CalendarIcon size={18} />
                   Confirmar Reserva
                 </button>
-                <button 
+                <button
                   onClick={() => setSelectedSpot(null)}
                   className="w-full py-2 text-slate-500 hover:text-slate-700 font-medium text-sm"
                 >
