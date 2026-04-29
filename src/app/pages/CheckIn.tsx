@@ -1,3 +1,4 @@
+/*
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -132,7 +133,7 @@ export default function CheckIn() {
           </AnimatePresence>
         </div>
         
-        {/* Decorative bottom bar */}
+        {/* Decorative bottom bar *//*}
         <div className={clsx(
           "h-2 w-full transition-colors",
           isCheckedIn ? "bg-emerald-500" : "bg-blue-600"
@@ -145,3 +146,4 @@ export default function CheckIn() {
     </div>
   );
 }
+*/
