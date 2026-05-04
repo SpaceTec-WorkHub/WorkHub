@@ -6,6 +6,7 @@ import { motion } from 'motion/react';
 import { Calendar as CalendarIcon, Clock, CheckCircle, Search, Filter } from 'lucide-react';
 import { clsx } from 'clsx';
 import 'react-day-picker/dist/style.css';
+import { addNotification, notifyChange } from '../data/notifications';
 
 // Override default DayPicker styles with Tailwind classes
 const css = `
@@ -34,16 +35,25 @@ export default function Reservation() {
   const [step, setStep] = useState(1); // 1: Select, 2: Confirm
 
   const handleConfirm = () => {
-    setStep(2);
-    setTimeout(() => {
-      // Simulate API call
-      // In a real app, this would navigate or reset
-      alert("Reserva confirmada exitosamente!");
-      setStep(1);
-      setSelectedResource(null);
-      setSelectedTime(null);
-    }, 1500);
-  };
+  setStep(2);
+
+  setTimeout(() => {
+    const resource = availableResources.find((item) => item.id === selectedResource);
+
+    addNotification(
+      'Reserva confirmada',
+      `Reservaste ${resource?.name || 'un espacio'} para ${selectedTime}.`,
+      'reservation'
+    );
+
+    notifyChange();
+
+    alert("Reserva confirmada exitosamente!");
+    setStep(1);
+    setSelectedResource(null);
+    setSelectedTime(null);
+  }, 1500);
+};
 
   return (
     <div className="max-w-6xl mx-auto">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router';
+import { NavLink, useNavigate } from 'react-router';
 import { 
   LayoutDashboard, 
   Map as MapIcon, 
@@ -8,7 +8,8 @@ import {
   Settings, 
   Trophy, 
   Car, 
-  LogOut 
+  LogOut,
+  User
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { clsx } from 'clsx';
@@ -20,10 +21,13 @@ const navItems = [
   { icon: CheckCircle, label: 'Check-in', path: '/check-in' },
   { icon: Car, label: 'Carpool', path: '/carpool' },
   { icon: Trophy, label: 'Gamificación', path: '/gamification' },
+  { icon: User, label: 'Perfil', path: '/profile' },
   { icon: Settings, label: 'Admin', path: '/admin' },
 ];
 
 export default function Sidebar() {
+  const navigate = useNavigate();
+
   return (
     <div className="w-64 h-screen bg-white border-r border-slate-200 flex flex-col shadow-sm fixed left-0 top-0 z-10">
       <div className="p-6 border-b border-slate-100 flex items-center gap-2">
@@ -61,9 +65,6 @@ export default function Sidebar() {
                   <motion.div
                     layoutId="active-pill"
                     className="absolute left-0 w-1 h-8 bg-blue-600 rounded-r-full"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
                   />
                 )}
               </>
@@ -73,18 +74,26 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-100">
-        <div className="flex items-center gap-3 mb-4 px-2">
+        <button
+          type="button"
+          onClick={() => navigate('/profile')}
+          className="flex items-center gap-3 mb-4 px-2 py-2 rounded-xl hover:bg-slate-100 transition-colors w-full text-left"
+        >
           <img
             src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-            alt="User"
-            className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
+            alt="Usuario"
+            className="w-10 h-10 rounded-full border-2 border-white shadow-sm object-cover"
           />
           <div>
             <p className="text-sm font-semibold text-slate-800">Carlos Ruiz</p>
             <p className="text-xs text-slate-500">UX Designer</p>
           </div>
-        </div>
-        <button className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
+        </button>
+
+        <button
+          onClick={() => navigate('/login')}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+        >
           <LogOut size={16} />
           <span>Cerrar Sesión</span>
         </button>

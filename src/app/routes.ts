@@ -8,6 +8,7 @@ import CheckIn from "./pages/CheckIn";
 import Admin from "./pages/Admin";
 import Gamification from "./pages/Gamification";
 import Carpool from "./pages/Carpool";
+import Profile from "./pages/Profile";
 
 export const router = createBrowserRouter([
   {
@@ -26,6 +27,7 @@ export const router = createBrowserRouter([
       { path: "admin", Component: Admin },
       { path: "gamification", Component: Gamification },
       { path: "carpool", Component: Carpool },
+      { path: "profile", Component: Profile },
     ],
   },
 ]);
