@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DayPicker } from 'react-day-picker';
-import { format, isBefore, startOfToday } from 'date-fns';
+import { format, isBefore, startOfToday, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion } from 'motion/react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { Calendar as CalendarIcon, Clock, CheckCircle, Search, Filter, MapPin, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import 'react-day-picker/dist/style.css';
@@ -36,12 +36,101 @@ const buildLocalDateTime = (date: Date, time: string) => {
 const isParkingSpace = (space: ReservationSpace | ReservationRecord['space']) =>
   (space.space_type?.name ?? '').toLowerCase().includes('parking');
 
+const isDeskSpace = (space: ReservationSpace | ReservationRecord['space']) => {
+  const name = (space.space_type?.name ?? '').toLowerCase();
+  return name.includes('desk') || name.includes('escritorio') || name.includes('escritorios');
+};
+
+const isRoomSpace = (space: ReservationSpace | ReservationRecord['space']) => {
+  const name = (space.space_type?.name ?? '').toLowerCase();
+  return name.includes('room') || name.includes('sala') || name.includes('meeting') || name.includes('juntas');
+};
+
 const overlaps = (leftStart: Date, leftEnd: Date, rightStart: Date, rightEnd: Date) =>
   leftStart < rightEnd && leftEnd > rightStart;
 
+const isTimeSlotPassed = (slot: ReservationTimeSlot, selectedDate: Date): boolean => {
+  if (!isToday(selectedDate)) {
+    return false;
+  }
+
+  const now = new Date();
+  const [slotEndHours, slotEndMinutes] = slot.end_time.split(':').map(Number);
+  const slotEndTime = new Date(selectedDate);
+  slotEndTime.setHours(slotEndHours, slotEndMinutes, 0, 0);
+
+  return now >= slotEndTime;
+};
+
+function getReservationContext(search: string, state: unknown) {
+  const searchParams = new URLSearchParams(search);
+  const navigationState = state && typeof state === 'object' ? (state as Record<string, unknown>) : {};
+
+  const readPositiveNumber = (...values: unknown[]) => {
+    for (const value of values) {
+      const parsedValue = Number(value);
+      if (Number.isFinite(parsedValue) && parsedValue > 0) {
+        return parsedValue;
+      }
+    }
+
+    return null;
+  };
+
+  const readString = (...values: unknown[]) => {
+    for (const value of values) {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value;
+      }
+    }
+
+    return null;
+  };
+
+  return {
+    eventId: readPositiveNumber(navigationState.eventId, navigationState.event_id, searchParams.get('event_id')),
+    startTime: readString(navigationState.startTime, navigationState.start_time, searchParams.get('start_time')),
+    endTime: readString(navigationState.endTime, navigationState.end_time, searchParams.get('end_time')),
+    spaceId: readPositiveNumber(
+      navigationState.spaceId,
+      navigationState.space_id,
+      navigationState.selectedSpaceId,
+      searchParams.get('space_id'),
+    ),
+    spaceCode: readString(navigationState.spaceCode, navigationState.code, navigationState.selectedSpaceCode),
+  };
+}
+
+function normalizeToHHMM(value?: string | null | Date) {
+  if (!value) return null;
+
+  // Accept Date objects
+  const raw = value instanceof Date ? value.toISOString() : String(value);
+
+  // Try to find the first HH:MM occurrence (handles 'T', space, with/without seconds)
+  const match = raw.match(/(\d{2}:\d{2})/);
+  return match ? match[1] : null;
+}
+
 export default function Reservation() {
   const navigate = useNavigate();
-  const [date, setDate] = useState<Date | undefined>(new Date());
+  const location = useLocation();
+  const reservationContext = useMemo(
+    () => getReservationContext(location.search, location.state),
+    [location.search, location.state],
+  );
+  const [date, setDate] = useState<Date | undefined>(() => {
+    if (reservationContext.startTime) {
+      try {
+        const parsed = new Date(String(reservationContext.startTime));
+        return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      } catch {
+        return new Date();
+      }
+    }
+
+    return new Date();
+  });
   const [selectedSlot, setSelectedSlot] = useState<ReservationTimeSlot | null>(null);
   const [selectedSpaceId, setSelectedSpaceId] = useState<number | null>(null);
   const [timeSlots, setTimeSlots] = useState<ReservationTimeSlot[]>([]);
@@ -65,6 +154,13 @@ export default function Reservation() {
 
     return ['all', ...types];
   }, [spaces]);
+
+  const validTimeSlots = useMemo(() => {
+    return timeSlots.map((slot) => ({
+      ...slot,
+      is_available: slot.is_available && !isTimeSlotPassed(slot, date ?? new Date()),
+    }));
+  }, [timeSlots, date]);
 
   const filteredSpaces = useMemo(() => {
     return spaces.filter((space) => {
@@ -94,6 +190,36 @@ export default function Reservation() {
       if (!isParkingSpace(reservation.space)) {
         return false;
       }
+
+      const reservationStart = new Date(reservation.start_time);
+      const reservationEnd = new Date(reservation.end_time);
+      return overlaps(slotStart, slotEnd, reservationStart, reservationEnd);
+    });
+  }, [date, selectedSlot, userReservations]);
+
+  const deskConflictExists = useMemo(() => {
+    if (!date || !selectedSlot) return false;
+
+    const slotStart = buildLocalDateTime(date, selectedSlot.start_time);
+    const slotEnd = buildLocalDateTime(date, selectedSlot.end_time);
+
+    return userReservations.some((reservation) => {
+      if (!isDeskSpace(reservation.space)) return false;
+
+      const reservationStart = new Date(reservation.start_time);
+      const reservationEnd = new Date(reservation.end_time);
+      return overlaps(slotStart, slotEnd, reservationStart, reservationEnd);
+    });
+  }, [date, selectedSlot, userReservations]);
+
+  const roomConflictExists = useMemo(() => {
+    if (!date || !selectedSlot) return false;
+
+    const slotStart = buildLocalDateTime(date, selectedSlot.start_time);
+    const slotEnd = buildLocalDateTime(date, selectedSlot.end_time);
+
+    return userReservations.some((reservation) => {
+      if (!isRoomSpace(reservation.space)) return false;
 
       const reservationStart = new Date(reservation.start_time);
       const reservationEnd = new Date(reservation.end_time);
@@ -136,6 +262,20 @@ export default function Reservation() {
     getReservationTimeSlots(selectedDateKey)
       .then((slots) => {
         setTimeSlots(slots);
+        if (reservationContext.startTime && reservationContext.endTime) {
+          const targetStart = normalizeToHHMM(reservationContext.startTime);
+          const targetEnd = normalizeToHHMM(reservationContext.endTime);
+
+          const preselectedSlot = slots.find((slot) => {
+            const slotStart = normalizeToHHMM(slot.start_time);
+            const slotEnd = normalizeToHHMM(slot.end_time);
+
+            return slotStart === targetStart && slotEnd === targetEnd;
+          });
+
+          if (preselectedSlot) setSelectedSlot(preselectedSlot);
+        }
+
         const firstAvailableSlot = slots.find((slot) => slot.is_available);
 
         if (!firstAvailableSlot) {
@@ -151,7 +291,7 @@ export default function Reservation() {
       .finally(() => {
         setLoadingSlots(false);
       });
-  }, [date, selectedDateKey, today]);
+  }, [date, selectedDateKey, today, reservationContext.endTime, reservationContext.startTime]);
 
   useEffect(() => {
     if (!date || !selectedSlot) {
@@ -165,14 +305,35 @@ export default function Reservation() {
 
     getReservationSpaces(selectedDateKey, selectedSlot.start_time, selectedSlot.end_time)
       .then((availableSpaces) => {
-        const filteredSpaces = parkingConflictExists
-          ? availableSpaces.filter((space) => !isParkingSpace(space))
-          : availableSpaces;
+        let filteredSpaces = availableSpaces;
+
+        if (parkingConflictExists) {
+          filteredSpaces = filteredSpaces.filter((space) => !isParkingSpace(space));
+        }
+
+        if (deskConflictExists) {
+          filteredSpaces = filteredSpaces.filter((space) => !isDeskSpace(space));
+        }
+
+        if (roomConflictExists) {
+          filteredSpaces = filteredSpaces.filter((space) => !isRoomSpace(space));
+        }
 
         setSpaces(filteredSpaces);
         setSelectedSpaceId((currentSelectedSpaceId) => {
           if (filteredSpaces.some((space) => space.space_id === currentSelectedSpaceId)) {
             return currentSelectedSpaceId;
+          }
+
+          if (reservationContext.spaceId && filteredSpaces.some((space) => space.space_id === reservationContext.spaceId)) {
+            return reservationContext.spaceId;
+          }
+
+          if (reservationContext.spaceCode) {
+            const matchedSpace = filteredSpaces.find((space) => space.code === reservationContext.spaceCode);
+            if (matchedSpace) {
+              return matchedSpace.space_id;
+            }
           }
 
           return null;
@@ -186,7 +347,7 @@ export default function Reservation() {
       .finally(() => {
         setLoadingSpaces(false);
       });
-  }, [date, selectedDateKey, selectedSlot, parkingConflictExists]);
+  }, [date, selectedDateKey, selectedSlot, parkingConflictExists, reservationContext.spaceCode, reservationContext.spaceId]);
 
   const handleDateChange = (selectedDate: Date | undefined) => {
     setDate(selectedDate);
@@ -207,7 +368,7 @@ export default function Reservation() {
   };
 
   const handleConfirm = async () => {
-    if (!date || !selectedSlot || !selectedSpaceId) {
+    if (!date || !selectedSlot || !selectedSpaceId || !selectedSpace?.code) {
       return;
     }
 
@@ -219,6 +380,7 @@ export default function Reservation() {
         start_time: buildLocalDateTime(date, selectedSlot.start_time).toISOString(),
         end_time: buildLocalDateTime(date, selectedSlot.end_time).toISOString(),
         space_id: selectedSpaceId,
+        ...(reservationContext.eventId ? { event_id: reservationContext.eventId } : {}),
       });
 
       setSuccessMessage('Reserva confirmada exitosamente.');
@@ -256,9 +418,18 @@ export default function Reservation() {
           </button>
       </div>
 
-      {parkingConflictExists ? (
+      {parkingConflictExists || deskConflictExists || roomConflictExists ? (
         <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          Ya tienes una reserva de estacionamiento en este horario. Solo se muestran espacios no vehiculares.
+          {parkingConflictExists ? (
+            <div>Ya tienes una reserva de estacionamiento en este horario.</div>
+          ) : null}
+          {deskConflictExists ? (
+            <div>Ya tienes una reserva de escritorio en este horario.</div>
+          ) : null}
+          {roomConflictExists ? (
+            <div>Ya tienes una reserva de sala en este horario.</div>
+          ) : null}
+          <div className="mt-2">Solo se muestran espacios de otros tipos para evitar reservas duplicadas.</div>
         </div>
       ) : null}
 
@@ -303,7 +474,7 @@ export default function Reservation() {
               <div className="text-sm text-slate-500">Cargando horarios disponibles...</div>
             ) : todaySlots ? (
               <div className="grid grid-cols-1 gap-2">
-                {timeSlots.map((slot) => (
+                {validTimeSlots.map((slot) => (
                   <button
                     key={slot.label}
                     onClick={() => handleTimeSelect(slot)}

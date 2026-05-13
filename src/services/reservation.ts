@@ -94,7 +94,25 @@ export type ReservationPayload = {
   end_time: string;
   user_id: number;
   space_id: number;
+  code?: string;
+  event_id?: number;
 };
+
+function generateReservationCode() {
+  try {
+      // Modern browsers support crypto.randomUUID()
+      if (typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function') {
+        // Use full UUID (without hyphens) for maximum entropy
+        return `RES-${(crypto as any).randomUUID().replace(/-/g, '').toUpperCase()}`;
+    }
+  } catch {
+    // fallthrough
+  }
+
+  // Fallback: short random base36 string
+  const rand = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString(36).toUpperCase();
+  return `RES-${rand.slice(0, 8)}`;
+}
 
 export async function getReservationTimeSlots(date: string) {
   return apiRequest<ReservationTimeSlot[]>(`/reservation/availability/slots?date=${encodeURIComponent(date)}`);
@@ -119,13 +137,49 @@ export async function createReservation(payload: Omit<ReservationPayload, 'user_
     throw new Error('No se encontró la sesión del usuario.');
   }
 
-  return apiRequest('/reservation', {
-    method: 'POST',
-    body: JSON.stringify({
-      ...payload,
-      user_id: userId,
-    }),
-  });
+    const code = payload.code ?? generateReservationCode();
+
+    // Crear reintentos si el código es duplicado
+    let lastError: any = null;
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const attemptCode = attempt === 1 ? code : generateReservationCode();
+
+      try {
+        return await apiRequest('/reservation', {
+          method: 'POST',
+          body: JSON.stringify({
+            start_time: payload.start_time,
+            end_time: payload.end_time,
+            code: attemptCode,
+            user_id: userId,
+            space_id: payload.space_id,
+            ...(payload.event_id ? { event_id: payload.event_id } : {}),
+          }),
+        });
+      } catch (err: any) {
+        lastError = err;
+
+        const msg = String(err?.message ?? '').toLowerCase();
+
+        // If backend returned HTTP 409 the default message from apiRequest contains '409'.
+        // Also handle textual hints like 'conflict', 'duplicate', 'unique' or 'code'.
+        const shouldRetry = msg.includes('409') || /conflict|duplicate|unique|code/.test(msg);
+
+        if (!shouldRetry) {
+          throw err;
+        }
+
+        // If this was the last attempt, rethrow the error.
+        if (attempt === maxAttempts) {
+          throw err;
+        }
+
+        // Otherwise, loop and try again with a fresh code.
+      }
+    }
+
+    throw lastError;
 }
 
 export async function updateReservation(
@@ -142,6 +196,12 @@ export async function updateReservation(
 
 export async function cancelReservation(reservationId: number) {
   return updateReservation(reservationId, { status: 'cancelled' });
+}
+
+export async function deleteReservation(reservationId: number) {
+  return apiRequest(`/reservation/${reservationId}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function getActiveReservations() {

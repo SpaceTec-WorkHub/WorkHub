@@ -5,15 +5,18 @@ import {
   CalendarClock,
   CheckCircle,
   Clock,
+  PencilLine,
   Filter,
   History,
   Search,
   RotateCcw,
+  Trash2,
   TriangleAlert,
   MapPin,
 } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { getCurrentUserId } from '../../services/auth';
-import { getReservationHistory, ReservationRecord } from '../../services/reservation';
+import { cancelReservation, deleteReservation, getUserReservations, ReservationRecord } from '../../services/reservation';
 
 const statusLabels: Record<ReservationRecord['status'], string> = {
   reserved: 'Reservada',
@@ -35,7 +38,16 @@ const statusStyles: Record<ReservationRecord['status'], string> = {
   incident: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200',
 };
 
-const historyStatuses = ['all', 'checked_out', 'no_show', 'cancelled', 'incident'] as const;
+const historyStatuses = [
+  'all',
+  'reserved',
+  'checked_in',
+  'checked_out',
+  'checkout_pending',
+  'no_show',
+  'cancelled',
+  'incident',
+] as const;
 
 type HistoryStatusFilter = (typeof historyStatuses)[number];
 
@@ -48,8 +60,10 @@ const formatDateTime = (value?: string | null) => {
 };
 
 export default function ReservationHistory() {
+  const navigate = useNavigate();
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingReservationId, setDeletingReservationId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>('all');
@@ -64,7 +78,7 @@ export default function ReservationHistory() {
     }
 
     setLoading(true);
-    getReservationHistory()
+    getUserReservations(currentUserId)
       .then((data) => {
         setReservations(data);
         setError('');
@@ -74,6 +88,50 @@ export default function ReservationHistory() {
       })
       .finally(() => setLoading(false));
   }, [currentUserId]);
+
+  const handleReservationAction = async (reservation: ReservationRecord) => {
+    const isCancelled = reservation.status === 'cancelled';
+    const confirmed = window.confirm(
+      isCancelled
+        ? '¿Deseas eliminar permanentemente esta reservación?'
+        : '¿Deseas cancelar esta reservación?',
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingReservationId(reservation.reservation_id);
+    setError('');
+
+    try {
+      if (isCancelled) {
+        await deleteReservation(reservation.reservation_id);
+      } else {
+        await cancelReservation(reservation.reservation_id);
+      }
+
+      if (currentUserId) {
+        const updatedReservations = await getUserReservations(currentUserId);
+        setReservations(updatedReservations);
+      }
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'No fue posible completar la acción.');
+    } finally {
+      setDeletingReservationId(null);
+    }
+  };
+
+  const handleViewAvailability = (reservation: ReservationRecord) => {
+    navigate('/reservation', {
+      state: {
+        spaceId: reservation.space_id,
+        spaceCode: reservation.space?.code,
+        startTime: reservation.start_time,
+        endTime: reservation.end_time,
+      },
+    });
+  };
 
   const filteredReservations = useMemo(() => {
     return reservations.filter((reservation) => {
@@ -262,6 +320,37 @@ export default function ReservationHistory() {
                     </div>
                   ) : null}
                 </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3 border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+                <button
+                  type="button"
+                  disabled={deletingReservationId === reservation.reservation_id}
+                  onClick={() => handleReservationAction(reservation)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Trash2 size={16} />
+                  {deletingReservationId === reservation.reservation_id
+                    ? 'Procesando...'
+                    : reservation.status === 'cancelled'
+                      ? 'Eliminar'
+                      : 'Cancelar'}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={reservation.status !== 'cancelled'}
+                  onClick={() => handleViewAvailability(reservation)}
+                  className={[
+                    'inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors',
+                    reservation.status === 'cancelled'
+                      ? 'rounded-xl bg-blue-600 text-white hover:bg-blue-500'
+                      : 'rounded-xl border border-slate-200 bg-white text-slate-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800',
+                  ].join(' ')}
+                >
+                  <PencilLine size={16} />
+                  {reservation.status === 'cancelled' ? 'Ver disponibilidad' : 'Editar'}
+                </button>
               </div>
             </motion.article>
           ))}

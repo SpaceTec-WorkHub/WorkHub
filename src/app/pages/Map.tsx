@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router';
 import { getSpace, ApiSpace } from '../../services/space';
 import { createReservation } from '../../services/reservation';
 
@@ -53,6 +54,7 @@ const desks = generateSpots('desk', 48);
 const parkingSpots = generateSpots('parking', 30);
 */
 export default function MapView() {
+  const navigate = useNavigate();
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -96,17 +98,18 @@ export default function MapView() {
   };
 
   const handleReserve = async () => {
-  if (!selectedSpot) return;
+    if (!selectedSpot) return;
 
-  try {
-    await createReservation(Number(selectedSpot.id));
-    toast.success(`¡Reserva confirmada para ${selectedSpot.label}!`);
+    navigate('/reservation', {
+      state: {
+        spaceId: Number(selectedSpot.id),
+        spaceCode: selectedSpot.label,
+      },
+    });
+
+    toast.success(`Espacio ${selectedSpot.label} listo para reservar.`);
     setSelectedSpot(null);
-  } catch (err) {
-    toast.error('No se pudo crear la reserva.');
-    console.error(err);
-  }
-};
+  };
 
   if (loading) return <p>Cargando mapa...</p>;
   if (error) return <p>Error: {error}</p>;
