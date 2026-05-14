@@ -5,6 +5,7 @@ import {
   Map, 
   CalendarCheck, 
   UserCheck, 
+  User,
   Settings, 
   Trophy, 
   Car, 
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { motion, AnimatePresence } from 'motion/react';
+import { clearSession, isAdminUser } from '../../../services/auth';
 
 const SidebarItem = ({ to, icon: Icon, label }: { to: string; icon: any; label: string }) => {
   return (
@@ -44,14 +46,18 @@ export default function Layout() {
     { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/map", icon: Map, label: "Mapa de Espacios" },
     { to: "/reservation", icon: CalendarCheck, label: "Reservar" },
+    { to: "/reservations", icon: CalendarCheck, label: "Mis Reservas" },
     { to: "/check-in-out", icon: UserCheck, label: "Check-in / Out" },
     { to: "/carpool", icon: Car, label: "Carpool" },
     { to: "/gamification", icon: Trophy, label: "Mis Puntos" },
-    { to: "/admin", icon: Settings, label: "Administración" },
+    { to: "/profile", icon: User, label: "Perfil" },
   ];
 
+  const adminNavItem = isAdminUser() ? { to: "/admin", icon: Settings, label: "Administración" } : null;
+
   const handleLogout = () => {
-    navigate("/");
+    clearSession();
+    navigate('/login', { replace: true });
   };
 
   return (
@@ -95,7 +101,7 @@ export default function Layout() {
           <div className="px-4 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Menu Principal
           </div>
-          {navItems.map((item) => (
+          {navItems.concat(adminNavItem ? [adminNavItem] : []).map((item) => (
             <SidebarItem key={item.to} {...item} />
           ))}
         </div>

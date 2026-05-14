@@ -4,6 +4,7 @@ import {
   LayoutDashboard, 
   Map as MapIcon, 
   CalendarCheck, 
+  History,
   CheckCircle, 
   Settings, 
   Trophy, 
@@ -13,11 +14,13 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { clsx } from 'clsx';
+import { clearSession } from '../../services/auth';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: MapIcon, label: 'Mapa de Espacios', path: '/map' },
   { icon: CalendarCheck, label: 'Reservar', path: '/reservation' },
+  { icon: History, label: 'Historial', path: '/reservations' },
   { icon: CheckCircle, label: 'Check-in', path: '/check-in' },
   { icon: Car, label: 'Carpool', path: '/carpool' },
   { icon: Trophy, label: 'Gamificación', path: '/gamification' },
@@ -91,7 +94,10 @@ export default function Sidebar() {
         </button>
 
         <button
-          onClick={() => navigate('/login')}
+          onClick={() => {
+            clearSession();
+            navigate('/login');
+          }}
           className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
         >
           <LogOut size={16} />
