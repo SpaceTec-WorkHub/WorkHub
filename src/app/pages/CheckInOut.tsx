@@ -131,6 +131,11 @@ export default function CheckInOut() {
     if (!activeReservation) {
       return;
     }
+    // Validación defensiva: comprobar ventana de -15/+20 minutos
+    if (!canCheckInWindow) {
+      setError('El check-in solo está disponible desde 15 minutos antes hasta 20 minutos después del inicio de la reserva.');
+      return;
+    }
 
     setActionLoading(true);
     setError('');
@@ -221,11 +226,24 @@ export default function CheckInOut() {
       setActionLoading(false);
     }
   };
-
   const canCheckIn = Boolean(activeReservation && activeReservation.status === 'reserved');
   const canCheckOut = Boolean(
     activeReservation && ['checked_in', 'checkout_pending'].includes(activeReservation.status),
   );
+
+  const checkInWindowRange = useMemo(() => {
+    if (!activeReservation || !activeReservation.start_time) return null;
+    const start = new Date(activeReservation.start_time);
+    const allowedStart = new Date(start.getTime() - 15 * 60 * 1000);
+    const allowedEnd = new Date(start.getTime() + 20 * 60 * 1000);
+    return { allowedStart, allowedEnd };
+  }, [activeReservation]);
+
+  const canCheckInWindow = useMemo(() => {
+    if (!activeReservation || activeReservation.status !== 'reserved' || !checkInWindowRange) return false;
+    const now = new Date();
+    return now >= checkInWindowRange.allowedStart && now <= checkInWindowRange.allowedEnd;
+  }, [activeReservation, checkInWindowRange]);
 
   return (
     <div className="mx-auto max-w-6xl py-8">
@@ -307,7 +325,7 @@ export default function CheckInOut() {
                     <div className="grid gap-3 md:grid-cols-3">
                       <button
                         onClick={handleCheckIn}
-                        disabled={!canCheckIn || actionLoading}
+                        disabled={!canCheckInWindow || actionLoading}
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                       >
                         <LogIn size={18} />
@@ -330,6 +348,12 @@ export default function CheckInOut() {
                         Extender reserva
                       </button>
                     </div>
+
+                    {canCheckIn && !canCheckInWindow && checkInWindowRange ? (
+                      <div className="mt-2 text-sm text-slate-500">
+                        Check-in disponible desde {format(checkInWindowRange.allowedStart, 'dd/MM/yyyy HH:mm')} hasta {format(checkInWindowRange.allowedEnd, 'dd/MM/yyyy HH:mm')}.
+                      </div>
+                    ) : null}
 
                     <div className="grid gap-4 md:grid-cols-[1.4fr_0.8fr]">
                       <label className="block space-y-2">
