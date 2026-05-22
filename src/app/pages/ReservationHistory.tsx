@@ -21,7 +21,7 @@ import { cancelReservation, deleteReservation, getUserReservations, ReservationR
 const statusLabels: Record<ReservationRecord['status'], string> = {
   reserved: 'Reservada',
   checked_in: 'En curso',
-  checked_out: 'Liberada',
+  checked_out: 'Finalizadas',
   no_show: 'No-show',
   cancelled: 'Cancelada',
   checkout_pending: 'Checkout pendiente',
@@ -179,7 +179,7 @@ export default function ReservationHistory() {
             <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{summary.total}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-            <p className="text-xs uppercase tracking-wider text-slate-500">Liberadas</p>
+            <p className="text-xs uppercase tracking-wider text-slate-500">Finalizadas</p>
             <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{summary.checkedOut}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">

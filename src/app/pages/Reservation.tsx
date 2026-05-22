@@ -49,6 +49,11 @@ const isRoomSpace = (space: ReservationSpace | ReservationRecord['space']) => {
 const overlaps = (leftStart: Date, leftEnd: Date, rightStart: Date, rightEnd: Date) =>
   leftStart < rightEnd && leftEnd > rightStart;
 
+const getReservationEffectiveEnd = (reservation: ReservationRecord) =>
+  reservation.status === 'checked_out' && reservation.check_out_time
+    ? new Date(reservation.check_out_time)
+    : new Date(reservation.end_time);
+
 const isTimeSlotPassed = (slot: ReservationTimeSlot, selectedDate: Date): boolean => {
   if (!isToday(selectedDate)) {
     return false;
@@ -198,14 +203,14 @@ export default function Reservation() {
     const slotStart = buildLocalDateTime(date, selectedSlot.start_time);
     const slotEnd = buildLocalDateTime(date, selectedSlot.end_time);
 
-    return userReservations.some((reservation) => {
-      if (!isParkingSpace(reservation.space)) {
-        return false;
-      }
-
-      return overlaps(slotStart, slotEnd, new Date(reservation.start_time), new Date(reservation.end_time));
+    const conflicts = userReservations.filter((reservation) => {
+      if (!activeReservationStatuses.has(reservation.status)) return false;
+      if (!isParkingSpace(reservation.space)) return false;
+      return overlaps(slotStart, slotEnd, new Date(reservation.start_time), getReservationEffectiveEnd(reservation));
     });
-  }, [date, selectedSlot, userReservations]);
+
+    return conflicts.length > 0;
+  }, [activeReservationStatuses, date, selectedSlot, userReservations]);
 
   const deskConflictExists = useMemo(() => {
     if (!date || !selectedSlot) return false;
@@ -213,12 +218,14 @@ export default function Reservation() {
     const slotStart = buildLocalDateTime(date, selectedSlot.start_time);
     const slotEnd = buildLocalDateTime(date, selectedSlot.end_time);
 
-    return userReservations.some((reservation) => {
+    const conflicts = userReservations.filter((reservation) => {
+      if (!activeReservationStatuses.has(reservation.status)) return false;
       if (!isDeskSpace(reservation.space)) return false;
-
-      return overlaps(slotStart, slotEnd, new Date(reservation.start_time), new Date(reservation.end_time));
+      return overlaps(slotStart, slotEnd, new Date(reservation.start_time), getReservationEffectiveEnd(reservation));
     });
-  }, [date, selectedSlot, userReservations]);
+
+    return conflicts.length > 0;
+  }, [activeReservationStatuses, date, selectedSlot, userReservations]);
 
   const roomConflictExists = useMemo(() => {
     if (!date || !selectedSlot) return false;
@@ -226,12 +233,14 @@ export default function Reservation() {
     const slotStart = buildLocalDateTime(date, selectedSlot.start_time);
     const slotEnd = buildLocalDateTime(date, selectedSlot.end_time);
 
-    return userReservations.some((reservation) => {
+    const conflicts = userReservations.filter((reservation) => {
+      if (!activeReservationStatuses.has(reservation.status)) return false;
       if (!isRoomSpace(reservation.space)) return false;
-
-      return overlaps(slotStart, slotEnd, new Date(reservation.start_time), new Date(reservation.end_time));
+      return overlaps(slotStart, slotEnd, new Date(reservation.start_time), getReservationEffectiveEnd(reservation));
     });
-  }, [date, selectedSlot, userReservations]);
+
+    return conflicts.length > 0;
+  }, [activeReservationStatuses, date, selectedSlot, userReservations]);
 
   const selectedSlotReservations = useMemo(() => {
     if (!date || !selectedSlot) {
@@ -241,13 +250,15 @@ export default function Reservation() {
     const slotStart = buildLocalDateTime(date, selectedSlot.start_time);
     const slotEnd = buildLocalDateTime(date, selectedSlot.end_time);
 
-    return userReservations.filter((reservation) => {
+    const result = userReservations.filter((reservation) => {
       if (!activeReservationStatuses.has(reservation.status)) {
         return false;
       }
 
-      return overlaps(slotStart, slotEnd, new Date(reservation.start_time), new Date(reservation.end_time));
+      return overlaps(slotStart, slotEnd, new Date(reservation.start_time), getReservationEffectiveEnd(reservation));
     });
+
+    return result;
   }, [activeReservationStatuses, date, selectedSlot, userReservations]);
 
   const selectedSlotTypeReservations = useMemo(() => {
@@ -299,7 +310,15 @@ export default function Reservation() {
 
     setLoadingReservations(true);
     getUserReservations(currentUserId)
-      .then((data) => setUserReservations(data))
+      .then((data) => {
+        const onlyMine = data.filter((res) => Number(res.user_id) === Number(currentUserId));
+
+        const activeOnly = onlyMine.filter((res) =>
+          ['reserved', 'checked_in', 'checkout_pending', 'incident'].includes(res.status),
+        );
+
+        setUserReservations(activeOnly);
+      })
       .catch(() => setUserReservations([]))
       .finally(() => setLoadingReservations(false));
   }, [currentUserId, navigate]);
@@ -444,7 +463,10 @@ export default function Reservation() {
       const [refreshedSlots, refreshedReservations] = await Promise.all(requests);
       setTimeSlots(refreshedSlots as ReservationTimeSlot[]);
       if (refreshedReservations) {
-        setUserReservations(refreshedReservations as ReservationRecord[]);
+        const refreshedActiveReservations = (refreshedReservations as ReservationRecord[]).filter((reservation) =>
+          activeReservationStatuses.has(reservation.status),
+        );
+        setUserReservations(refreshedActiveReservations);
       }
       setSelectedSlot(null);
       setSelectedSpaceId(null);

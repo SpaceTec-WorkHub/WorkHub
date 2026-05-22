@@ -1,8 +1,9 @@
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = (import.meta as ImportMeta & { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? 'http://localhost:3000';
 
 export type ApiSpace = {
   space_id: number;
   code: string;
+  zone_id: number;
   status: 'available' | 'occupied' | 'maintenance' | 'blocked';
   is_accessible: boolean;
   is_priority: boolean;

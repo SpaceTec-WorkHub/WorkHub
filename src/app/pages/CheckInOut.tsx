@@ -18,7 +18,7 @@ import {
   checkInReservation,
   checkOutReservation,
   extendReservation,
-  getActiveReservations,
+  getUserReservations,
   reportReservationIncident,
   ReservationRecord,
 } from '../../services/reservation';
@@ -75,6 +75,7 @@ function requestCurrentLocation() {
 
 export default function CheckInOut() {
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
+  const [selectedReservationIndex, setSelectedReservationIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
@@ -86,7 +87,7 @@ export default function CheckInOut() {
 
   const currentUserId = useMemo(() => getCurrentUserId(), []);
 
-  const activeReservation = useMemo(() => {
+  const sortedReservations = useMemo(() => {
     return [...reservations].sort((left, right) => {
       const leftPriority = left.status === 'checked_in' ? 0 : left.status === 'checkout_pending' ? 1 : 2;
       const rightPriority = right.status === 'checked_in' ? 0 : right.status === 'checkout_pending' ? 1 : 2;
@@ -96,8 +97,14 @@ export default function CheckInOut() {
       }
 
       return new Date(left.start_time).getTime() - new Date(right.start_time).getTime();
-    })[0] ?? null;
+    });
   }, [reservations]);
+
+  const activeReservation = useMemo(() => {
+    if (sortedReservations.length === 0) return null;
+    const index = Math.min(selectedReservationIndex, sortedReservations.length - 1);
+    return sortedReservations[index] ?? null;
+  }, [sortedReservations, selectedReservationIndex]);
 
   useEffect(() => {
     if (!currentUserId) {
@@ -107,9 +114,13 @@ export default function CheckInOut() {
     }
 
     setLoading(true);
-    getActiveReservations()
+    getUserReservations(currentUserId)
       .then((data) => {
-        setReservations(data);
+        const eligibleReservations = data.filter((res) => 
+          ['reserved', 'checked_in', 'checkout_pending'].includes(res.status)
+        );
+        setReservations(eligibleReservations);
+        setSelectedReservationIndex(0);
         setError('');
       })
       .catch((fetchError) => {
@@ -123,17 +134,22 @@ export default function CheckInOut() {
   }, [activeReservation]);
 
   const refreshReservations = async () => {
-    const data = await getActiveReservations();
-    setReservations(data);
+    if (!currentUserId) return;
+    const data = await getUserReservations(currentUserId);
+    const eligibleReservations = data.filter((res) => 
+      ['reserved', 'checked_in', 'checkout_pending'].includes(res.status)
+    );
+    setReservations(eligibleReservations);
+    setSelectedReservationIndex(0);
   };
 
   const handleCheckIn = async () => {
     if (!activeReservation) {
       return;
     }
-    // Validación defensiva: comprobar ventana de -15/+20 minutos
+    // Validacion defensiva: comprobar ventana de check-in vigente
     if (!canCheckInWindow) {
-      setError('El check-in solo está disponible desde 15 minutos antes hasta 20 minutos después del inicio de la reserva.');
+      setError('El check-in solo está disponible desde 15 minutos antes del inicio y hasta la hora final de la reserva.');
       return;
     }
 
@@ -232,10 +248,11 @@ export default function CheckInOut() {
   );
 
   const checkInWindowRange = useMemo(() => {
-    if (!activeReservation || !activeReservation.start_time) return null;
+    if (!activeReservation || !activeReservation.start_time || !activeReservation.end_time) return null;
     const start = new Date(activeReservation.start_time);
+    const end = new Date(activeReservation.end_time);
     const allowedStart = new Date(start.getTime() - 15 * 60 * 1000);
-    const allowedEnd = new Date(start.getTime() + 20 * 60 * 1000);
+    const allowedEnd = end;
     return { allowedStart, allowedEnd };
   }, [activeReservation]);
 
@@ -253,7 +270,7 @@ export default function CheckInOut() {
           <p className="text-slate-500">Valida tu presencia, libera el espacio y reporta incidentes desde una sola vista.</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-          <p>Check-in disponible desde 15 min antes hasta 20 min después.</p>
+          <p>Check-in disponible desde 15 min antes y hasta el fin de la reserva.</p>
           <p>Se buscará una reasignación si hay conflicto.</p>
         </div>
       </div>
@@ -274,14 +291,34 @@ export default function CheckInOut() {
         <div className="lg:col-span-7 space-y-6">
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
             <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-6 py-5 text-white">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Reserva activa</p>
-                  <h2 className="mt-2 text-2xl font-bold">{activeReservation?.space?.code ?? 'Sin reserva activa'}</h2>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Reserva activa</p>
+                    <h2 className="mt-2 text-2xl font-bold">{activeReservation?.space?.code ?? 'Sin reserva activa'}</h2>
+                  </div>
+                  <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white/80">
+                    {activeReservation ? statusLabels[activeReservation.status] : 'Sin estado'}
+                  </div>
                 </div>
-                <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white/80">
-                  {activeReservation ? statusLabels[activeReservation.status] : 'Sin estado'}
-                </div>
+                {sortedReservations.length > 1 ? (
+                  <div className="pt-2 border-t border-white/10">
+                    <label className="block space-y-2">
+                      <p className="text-xs uppercase tracking-wider text-slate-300">Seleccionar reserva</p>
+                      <select
+                        value={selectedReservationIndex}
+                        onChange={(event) => setSelectedReservationIndex(parseInt(event.target.value, 10))}
+                        className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white outline-none backdrop-blur-sm focus:border-white/40 transition-colors"
+                      >
+                        {sortedReservations.map((res, idx) => (
+                          <option key={res.reservation_id} value={idx} className="bg-slate-900 text-white">
+                            {format(new Date(res.start_time), 'dd/MM HH:mm')} - {res.space?.code} ({statusLabels[res.status]})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                ) : null}
               </div>
             </div>
 

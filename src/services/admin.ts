@@ -6,9 +6,42 @@ export type ZoneOption = {
   name: string;
 };
 
+export type RoleRecord = {
+  role_id: number;
+  name: string;
+};
+
 export type EmergencyZoneBlockResponse = {
   block: unknown;
   cancelledReservations: number;
+};
+
+export type SpaceBlockResponse = {
+  blocks: Array<{
+    block_id: number;
+    space_id: number;
+  }>;
+  cancelledReservations: number;
+};
+
+export type BlockRecord = {
+  block_id: number;
+  reason: string;
+  start_time: string;
+  end_time: string | null;
+  space_id: number | null;
+  zone_id: number | null;
+  space?: {
+    space_id: number;
+    code: string;
+    zone?: {
+      name: string;
+    };
+  } | null;
+  zone?: {
+    zone_id: number;
+    name: string;
+  } | null;
 };
 
 export type SpecialEventResponse = {
@@ -19,11 +52,48 @@ export type SpecialEventResponse = {
   blockedSpaces: number;
 };
 
+export type AdminUserRecord = {
+  user_id: number;
+  email: string | null;
+  full_name: string | null;
+  user_type: 'internal' | 'external';
+  status: 'active' | 'inactive';
+  role?: {
+    role_id: number;
+    name: string;
+  } | null;
+};
+
+export type AdminUserPayload = {
+  email: string;
+  password: string;
+  full_name: string;
+  user_type: 'internal' | 'external';
+  status: 'active' | 'inactive';
+  role_id?: number;
+};
+
+export type AdminUserUpdatePayload = Partial<AdminUserPayload>;
+
 export type EmergencyZoneBlockPayload = {
   zone_id: number;
   reason: string;
   start_time: string;
   end_time?: string;
+};
+
+export type SpaceBlockPayload = {
+  space_ids: number[];
+  reason: string;
+  start_time: string;
+  end_time?: string;
+};
+
+export type UpdateBlockPayload = {
+  reason?: string;
+  start_time?: string;
+  end_time?: string;
+  space_id?: number;
 };
 
 export type SpecialEventPayload = {
@@ -58,6 +128,10 @@ export async function getZones() {
   return apiRequest<ZoneOption[]>('/zone');
 }
 
+export async function getRoles() {
+  return apiRequest<RoleRecord[]>('/role');
+}
+
 export async function getGamificationUsers() {
   return apiRequest<GamificationUserOption[]>('/gamification/users');
 }
@@ -66,12 +140,60 @@ export async function getGamificationRewards() {
   return apiRequest<GamificationRewardsResponse>('/gamification/rewards');
 }
 
+export async function getUsers() {
+  return apiRequest<AdminUserRecord[]>('/users');
+}
+
+export async function createUser(payload: AdminUserPayload) {
+  return apiRequest<AdminUserRecord>('/users', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateUser(userId: number, payload: AdminUserUpdatePayload) {
+  return apiRequest<AdminUserRecord>(`/users/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteUser(userId: number) {
+  return apiRequest<AdminUserRecord>(`/users/${userId}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function createEmergencyZoneBlock(
   payload: EmergencyZoneBlockPayload,
 ): Promise<EmergencyZoneBlockResponse> {
   return apiRequest('/block/emergency-zone', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export async function createSpaceBlocks(payload: SpaceBlockPayload): Promise<SpaceBlockResponse> {
+  return apiRequest('/block/spaces', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getBlocks() {
+  return apiRequest<BlockRecord[]>('/block');
+}
+
+export async function updateBlock(blockId: number, payload: UpdateBlockPayload) {
+  return apiRequest<BlockRecord>(`/block/${blockId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteBlock(blockId: number) {
+  return apiRequest<BlockRecord>(`/block/${blockId}`, {
+    method: 'DELETE',
   });
 }
 
