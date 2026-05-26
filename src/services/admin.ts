@@ -1,14 +1,86 @@
 import { apiRequest } from './api';
 import type { GamificationRewardEntry as SharedGamificationRewardEntry, GamificationUserOption as SharedGamificationUserOption } from './gamification';
 
+export type AdminSiteRecord = {
+  site_id: number;
+  name: string;
+};
+
 export type ZoneOption = {
   zone_id: number;
   name: string;
 };
 
+export type AdminBuildingRecord = {
+  building_id: number;
+  name: string;
+  site_id: number;
+  site?: AdminSiteRecord | null;
+  floors?: AdminFloorRecord[];
+};
+
+export type AdminFloorRecord = {
+  floor_id: number;
+  name: string;
+  building_id: number;
+  floor_type: 'office' | 'parking';
+  building?: AdminBuildingRecord | null;
+  zones?: AdminZoneRecord[];
+};
+
+export type AdminZoneRecord = {
+  zone_id: number;
+  name: string;
+  floor_id: number;
+  floor?: AdminFloorRecord | null;
+  spaces?: AdminSpaceRecord[];
+};
+
+export type AdminSpaceTypeRecord = {
+  space_type_id: number;
+  name: string;
+};
+
+export type AdminSpaceRecord = {
+  space_id: number;
+  code: string;
+  is_accessible: boolean;
+  is_priority: boolean;
+  status: 'available' | 'occupied' | 'maintenance' | 'blocked';
+  zone_id: number;
+  zone?: AdminZoneRecord | null;
+  space_type_id?: number;
+  space_type?: AdminSpaceTypeRecord | null;
+};
+
 export type RoleRecord = {
   role_id: number;
   name: string;
+};
+
+export type BuildingPayload = {
+  name: string;
+  site_id: number;
+};
+
+export type FloorPayload = {
+  name: string;
+  building_id: number;
+  floor_type?: 'office' | 'parking';
+};
+
+export type ZonePayload = {
+  name: string;
+  floor_id: number;
+};
+
+export type SpacePayload = {
+  code: string;
+  is_accessible: boolean;
+  is_priority: boolean;
+  status: 'available' | 'occupied' | 'maintenance' | 'blocked';
+  space_type_id: number;
+  zone_id: number;
 };
 
 export type EmergencyZoneBlockResponse = {
@@ -130,6 +202,110 @@ export async function getZones() {
 
 export async function getRoles() {
   return apiRequest<RoleRecord[]>('/role');
+}
+
+export async function getSites() {
+  return apiRequest<AdminSiteRecord[]>('/site');
+}
+
+export async function getSpaceTypes() {
+  return apiRequest<AdminSpaceTypeRecord[]>('/space-type');
+}
+
+export async function getAdminBuildings() {
+  return apiRequest<AdminBuildingRecord[]>('/building');
+}
+
+export async function getAdminFloors() {
+  return apiRequest<AdminFloorRecord[]>('/floor');
+}
+
+export async function getAdminZones() {
+  return apiRequest<AdminZoneRecord[]>('/zone');
+}
+
+export async function getAdminSpaces() {
+  return apiRequest<AdminSpaceRecord[]>('/space');
+}
+
+export async function createBuilding(payload: BuildingPayload) {
+  return apiRequest<AdminBuildingRecord>('/building', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateBuilding(buildingId: number, payload: Partial<BuildingPayload>) {
+  return apiRequest<AdminBuildingRecord>(`/building/${buildingId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteBuilding(buildingId: number) {
+  return apiRequest<AdminBuildingRecord>(`/building/${buildingId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function createFloor(payload: FloorPayload) {
+  return apiRequest<AdminFloorRecord>('/floor', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateFloor(floorId: number, payload: Partial<FloorPayload>) {
+  return apiRequest<AdminFloorRecord>(`/floor/${floorId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteFloor(floorId: number) {
+  return apiRequest<AdminFloorRecord>(`/floor/${floorId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function createZone(payload: ZonePayload) {
+  return apiRequest<AdminZoneRecord>('/zone', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateZone(zoneId: number, payload: Partial<ZonePayload>) {
+  return apiRequest<AdminZoneRecord>(`/zone/${zoneId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteZone(zoneId: number) {
+  return apiRequest<AdminZoneRecord>(`/zone/${zoneId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function createSpace(payload: SpacePayload) {
+  return apiRequest<AdminSpaceRecord>('/space', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateSpace(spaceId: number, payload: Partial<SpacePayload>) {
+  return apiRequest<AdminSpaceRecord>(`/space/${spaceId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteSpace(spaceId: number) {
+  return apiRequest<AdminSpaceRecord>(`/space/${spaceId}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function getGamificationUsers() {

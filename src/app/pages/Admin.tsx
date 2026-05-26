@@ -22,19 +22,43 @@ import {
 import { isAdminUser, getCurrentUserId } from '../../services/auth';
 import {
   createGamificationReward,
+  createBuilding,
+  createFloor,
+  createSpace,
+  createZone,
   createSpaceBlocks,
   createSpecialEventReservations,
   createUser,
+  deleteBuilding,
+  deleteFloor,
   deleteGamificationReward,
   deleteBlock,
+  deleteSpace,
+  deleteZone,
   deleteUser,
+  getAdminBuildings,
+  getAdminFloors,
+  getAdminSpaces,
+  getAdminZones,
   getBlocks,
   getGamificationRewards,
   getRoles,
+  getSites,
+  getSpaceTypes,
   getUsers,
   getZones,
+  AdminBuildingRecord,
+  AdminFloorRecord,
+  AdminSiteRecord,
+  AdminSpaceRecord,
+  AdminSpaceTypeRecord,
+  AdminZoneRecord,
   ZoneOption,
   RoleRecord,
+  updateBuilding,
+  updateFloor,
+  updateSpace,
+  updateZone,
   updateBlock,
   BlockRecord,
   updateUser,
@@ -54,14 +78,42 @@ const toDateTimeLocalValue = (value: string | Date) => {
 export default function Admin() {
   const [zones, setZones] = useState<ZoneOption[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
+  const [sites, setSites] = useState<AdminSiteRecord[]>([]);
+  const [hierarchyBuildings, setHierarchyBuildings] = useState<AdminBuildingRecord[]>([]);
+  const [hierarchyFloors, setHierarchyFloors] = useState<AdminFloorRecord[]>([]);
+  const [hierarchyZones, setHierarchyZones] = useState<AdminZoneRecord[]>([]);
+  const [hierarchySpaces, setHierarchySpaces] = useState<AdminSpaceRecord[]>([]);
+  const [spaceTypes, setSpaceTypes] = useState<AdminSpaceTypeRecord[]>([]);
   const [loadingZones, setLoadingZones] = useState(true);
   const [loadingRoles, setLoadingRoles] = useState(true);
+  const [loadingHierarchy, setLoadingHierarchy] = useState(true);
   const [zoneError, setZoneError] = useState('');
   const [roleError, setRoleError] = useState('');
+  const [hierarchyError, setHierarchyError] = useState('');
   const [isAdmin, setIsAdmin] = useState(isAdminUser());
   const [spaces, setSpaces] = useState<ApiSpace[]>([]);
   const [loadingSpaces, setLoadingSpaces] = useState(true);
   const [spaceError, setSpaceError] = useState('');
+  const [hierarchyManagerOpen, setHierarchyManagerOpen] = useState(false);
+  const [editingBuildingId, setEditingBuildingId] = useState<number | null>(null);
+  const [buildingName, setBuildingName] = useState('');
+  const [buildingSiteId, setBuildingSiteId] = useState('');
+  const [editingFloorId, setEditingFloorId] = useState<number | null>(null);
+  const [floorName, setFloorName] = useState('');
+  const [floorBuildingId, setFloorBuildingId] = useState('');
+  const [floorType, setFloorType] = useState<'office' | 'parking'>('office');
+  const [editingZoneId, setEditingZoneId] = useState<number | null>(null);
+  const [zoneName, setZoneName] = useState('');
+  const [zoneFloorId, setZoneFloorId] = useState('');
+  const [editingSpaceId, setEditingSpaceId] = useState<number | null>(null);
+  const [spaceCode, setSpaceCode] = useState('');
+  const [spaceZoneId, setSpaceZoneId] = useState('');
+  const [spaceTypeId, setSpaceTypeId] = useState('');
+  const [spaceStatus, setSpaceStatus] = useState<'available' | 'occupied' | 'maintenance' | 'blocked'>('available');
+  const [spaceAccessible, setSpaceAccessible] = useState(false);
+  const [spacePriority, setSpacePriority] = useState(false);
+  const [hierarchyActionLoading, setHierarchyActionLoading] = useState(false);
+  const [hierarchyMessage, setHierarchyMessage] = useState('');
   const [spacePickerOpen, setSpacePickerOpen] = useState(false);
   const [spacePickerTab, setSpacePickerTab] = useState<'all' | 'desk' | 'parking'>('all');
   const [spacePickerSearch, setSpacePickerSearch] = useState('');
@@ -147,6 +199,121 @@ export default function Admin() {
 
       return [...current, space];
     });
+  };
+
+  const refreshHierarchy = async () => {
+    setLoadingHierarchy(true);
+
+    try {
+      const [siteData, buildingData, floorData, zoneData, spaceData, spaceTypeData] = await Promise.all([
+        getSites(),
+        getAdminBuildings(),
+        getAdminFloors(),
+        getAdminZones(),
+        getAdminSpaces(),
+        getSpaceTypes(),
+      ]);
+
+      setSites(siteData ?? []);
+      setHierarchyBuildings(buildingData ?? []);
+      setHierarchyFloors(floorData ?? []);
+      setHierarchyZones(zoneData ?? []);
+      setHierarchySpaces(spaceData ?? []);
+      setSpaceTypes(spaceTypeData ?? []);
+      setHierarchyError('');
+    } catch (error) {
+      setHierarchyError(error instanceof Error ? error.message : 'No fue posible cargar la jerarquía de espacios.');
+      setSites([]);
+      setHierarchyBuildings([]);
+      setHierarchyFloors([]);
+      setHierarchyZones([]);
+      setHierarchySpaces([]);
+      setSpaceTypes([]);
+    } finally {
+      setLoadingHierarchy(false);
+    }
+  };
+
+  const resetBuildingForm = () => {
+    setEditingBuildingId(null);
+    setBuildingName('');
+    setBuildingSiteId(String(sites[0]?.site_id ?? ''));
+    setHierarchyMessage('');
+  };
+
+  const resetFloorForm = () => {
+    setEditingFloorId(null);
+    setFloorName('');
+    setFloorBuildingId(String(hierarchyBuildings[0]?.building_id ?? ''));
+    setFloorType('office');
+    setHierarchyMessage('');
+  };
+
+  const resetZoneForm = () => {
+    setEditingZoneId(null);
+    setZoneName('');
+    setZoneFloorId(String(hierarchyFloors[0]?.floor_id ?? ''));
+    setHierarchyMessage('');
+  };
+
+  const resetSpaceForm = () => {
+    setEditingSpaceId(null);
+    setSpaceCode('');
+    setSpaceZoneId(String(hierarchyZones[0]?.zone_id ?? ''));
+    setSpaceTypeId(String(spaceTypes[0]?.space_type_id ?? ''));
+    setSpaceStatus('available');
+    setSpaceAccessible(false);
+    setSpacePriority(false);
+    setHierarchyMessage('');
+  };
+
+  const openBuildingEditor = (building: AdminBuildingRecord) => {
+    setEditingBuildingId(building.building_id);
+    setBuildingName(building.name);
+    setBuildingSiteId(String(building.site_id));
+    setHierarchyManagerOpen(true);
+    setHierarchyMessage('Editando edificio seleccionado.');
+  };
+
+  const openFloorEditor = (floor: AdminFloorRecord) => {
+    setEditingFloorId(floor.floor_id);
+    setFloorName(floor.name);
+    setFloorBuildingId(String(floor.building_id));
+    setFloorType(floor.floor_type);
+    setHierarchyManagerOpen(true);
+    setHierarchyMessage('Editando piso seleccionado.');
+  };
+
+  const openZoneEditor = (zone: AdminZoneRecord) => {
+    setEditingZoneId(zone.zone_id);
+    setZoneName(zone.name);
+    setZoneFloorId(String(zone.floor_id));
+    setHierarchyManagerOpen(true);
+    setHierarchyMessage('Editando zona seleccionada.');
+  };
+
+  const openSpaceEditor = (space: AdminSpaceRecord) => {
+    setEditingSpaceId(space.space_id);
+    setSpaceCode(space.code);
+    setSpaceZoneId(String(space.zone_id));
+    setSpaceTypeId(String(space.space_type_id ?? space.space_type?.space_type_id ?? ''));
+    setSpaceStatus(space.status);
+    setSpaceAccessible(space.is_accessible);
+    setSpacePriority(space.is_priority);
+    setHierarchyManagerOpen(true);
+    setHierarchyMessage('Editando espacio seleccionado.');
+  };
+
+  const openHierarchyManager = () => {
+    setHierarchyManagerOpen(true);
+    if (!sites.length || !hierarchyBuildings.length || !hierarchyFloors.length || !hierarchyZones.length || !spaceTypes.length) {
+      void refreshHierarchy();
+    }
+    setBuildingSiteId((current) => current || String(sites[0]?.site_id ?? ''));
+    setFloorBuildingId((current) => current || String(hierarchyBuildings[0]?.building_id ?? ''));
+    setZoneFloorId((current) => current || String(hierarchyFloors[0]?.floor_id ?? ''));
+    setSpaceZoneId((current) => current || String(hierarchyZones[0]?.zone_id ?? ''));
+    setSpaceTypeId((current) => current || String(spaceTypes[0]?.space_type_id ?? ''));
   };
 
   const cargarUsuarios = async () => {
@@ -331,6 +498,10 @@ export default function Admin() {
       .finally(() => setRewardsLoading(false));
   }, []);
 
+  useEffect(() => {
+    void refreshHierarchy();
+  }, []);
+
   const adminSince = useMemo(() => {
     const userId = getCurrentUserId();
     return userId ? `Usuario activo: #${userId}` : 'Sesión administrativa activa';
@@ -353,6 +524,209 @@ export default function Admin() {
   const refreshBlocks = async () => {
     const data = await getBlocks();
     setBlocks(data);
+  };
+
+  const handleBuildingSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!buildingName.trim() || !buildingSiteId) {
+      setHierarchyMessage('Completa el nombre del edificio y el site padre.');
+      return;
+    }
+
+    setHierarchyActionLoading(true);
+    setHierarchyMessage('');
+
+    try {
+      const payload = { name: buildingName.trim(), site_id: Number(buildingSiteId) };
+
+      if (editingBuildingId) {
+        await updateBuilding(editingBuildingId, payload);
+        setHierarchyMessage('Edificio actualizado correctamente.');
+      } else {
+        await createBuilding(payload);
+        setHierarchyMessage('Edificio creado correctamente.');
+      }
+
+      await refreshHierarchy();
+      resetBuildingForm();
+    } catch (error) {
+      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible guardar el edificio.');
+    } finally {
+      setHierarchyActionLoading(false);
+    }
+  };
+
+  const handleBuildingDelete = async (buildingId: number) => {
+    setHierarchyActionLoading(true);
+    setHierarchyMessage('');
+
+    try {
+      await deleteBuilding(buildingId);
+      await refreshHierarchy();
+      if (editingBuildingId === buildingId) {
+        resetBuildingForm();
+      }
+      setHierarchyMessage('Edificio eliminado correctamente.');
+    } catch (error) {
+      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible eliminar el edificio.');
+    } finally {
+      setHierarchyActionLoading(false);
+    }
+  };
+
+  const handleFloorSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!floorName.trim() || !floorBuildingId) {
+      setHierarchyMessage('Completa el nombre del piso y su edificio padre.');
+      return;
+    }
+
+    setHierarchyActionLoading(true);
+    setHierarchyMessage('');
+
+    try {
+      const payload = { name: floorName.trim(), building_id: Number(floorBuildingId), floor_type: floorType };
+
+      if (editingFloorId) {
+        await updateFloor(editingFloorId, payload);
+        setHierarchyMessage('Piso actualizado correctamente.');
+      } else {
+        await createFloor(payload);
+        setHierarchyMessage('Piso creado correctamente.');
+      }
+
+      await refreshHierarchy();
+      resetFloorForm();
+    } catch (error) {
+      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible guardar el piso.');
+    } finally {
+      setHierarchyActionLoading(false);
+    }
+  };
+
+  const handleFloorDelete = async (floorId: number) => {
+    setHierarchyActionLoading(true);
+    setHierarchyMessage('');
+
+    try {
+      await deleteFloor(floorId);
+      await refreshHierarchy();
+      if (editingFloorId === floorId) {
+        resetFloorForm();
+      }
+      setHierarchyMessage('Piso eliminado correctamente.');
+    } catch (error) {
+      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible eliminar el piso.');
+    } finally {
+      setHierarchyActionLoading(false);
+    }
+  };
+
+  const handleZoneSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!zoneName.trim() || !zoneFloorId) {
+      setHierarchyMessage('Completa el nombre de la zona y su piso padre.');
+      return;
+    }
+
+    setHierarchyActionLoading(true);
+    setHierarchyMessage('');
+
+    try {
+      const payload = { name: zoneName.trim(), floor_id: Number(zoneFloorId) };
+
+      if (editingZoneId) {
+        await updateZone(editingZoneId, payload);
+        setHierarchyMessage('Zona actualizada correctamente.');
+      } else {
+        await createZone(payload);
+        setHierarchyMessage('Zona creada correctamente.');
+      }
+
+      await refreshHierarchy();
+      resetZoneForm();
+    } catch (error) {
+      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible guardar la zona.');
+    } finally {
+      setHierarchyActionLoading(false);
+    }
+  };
+
+  const handleZoneDelete = async (zoneId: number) => {
+    setHierarchyActionLoading(true);
+    setHierarchyMessage('');
+
+    try {
+      await deleteZone(zoneId);
+      await refreshHierarchy();
+      if (editingZoneId === zoneId) {
+        resetZoneForm();
+      }
+      setHierarchyMessage('Zona eliminada correctamente.');
+    } catch (error) {
+      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible eliminar la zona.');
+    } finally {
+      setHierarchyActionLoading(false);
+    }
+  };
+
+  const handleSpaceSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!spaceCode.trim() || !spaceZoneId || !spaceTypeId) {
+      setHierarchyMessage('Completa el código del espacio, su zona padre y el tipo.');
+      return;
+    }
+
+    setHierarchyActionLoading(true);
+    setHierarchyMessage('');
+
+    try {
+      const payload = {
+        code: spaceCode.trim(),
+        zone_id: Number(spaceZoneId),
+        space_type_id: Number(spaceTypeId),
+        status: spaceStatus,
+        is_accessible: spaceAccessible,
+        is_priority: spacePriority,
+      };
+
+      if (editingSpaceId) {
+        await updateSpace(editingSpaceId, payload);
+        setHierarchyMessage('Espacio actualizado correctamente.');
+      } else {
+        await createSpace(payload);
+        setHierarchyMessage('Espacio creado correctamente.');
+      }
+
+      await refreshHierarchy();
+      resetSpaceForm();
+    } catch (error) {
+      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible guardar el espacio.');
+    } finally {
+      setHierarchyActionLoading(false);
+    }
+  };
+
+  const handleSpaceDelete = async (spaceId: number) => {
+    setHierarchyActionLoading(true);
+    setHierarchyMessage('');
+
+    try {
+      await deleteSpace(spaceId);
+      await refreshHierarchy();
+      if (editingSpaceId === spaceId) {
+        resetSpaceForm();
+      }
+      setHierarchyMessage('Espacio eliminado correctamente.');
+    } catch (error) {
+      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible eliminar el espacio.');
+    } finally {
+      setHierarchyActionLoading(false);
+    }
   };
 
   const openBlockEditor = (block: BlockRecord) => {
@@ -756,14 +1130,24 @@ export default function Admin() {
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300">
-            <Unlock size={20} />
-            <h2 className="font-semibold">Gestión de usuarios</h2>
+            <Monitor size={20} />
+            <h2 className="font-semibold">Gestión de espacios</h2>
           </div>
           <p className="mt-2 text-sm text-slate-500">
-            E
+            Administra edificios, pisos, zonas y espacios con sus relaciones padre-hijo desde un solo panel.
           </p>
-          <button className="mt-5 w-full rounded-lg bg-slate-700 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800">
-            Ver usuarios
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-slate-500">
+            <span className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900">{sites.length} site(s)</span>
+            <span className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900">{hierarchyBuildings.length} edificios</span>
+            <span className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900">{hierarchyFloors.length} pisos</span>
+            <span className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900">{hierarchyZones.length} zonas</span>
+          </div>
+          <button
+            className="mt-5 w-full rounded-lg bg-slate-700 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+            onClick={() => openHierarchyManager()}
+            type="button"
+          >
+            Abrir CRUD de jerarquía
           </button>
         </div>
       </div>
@@ -926,6 +1310,234 @@ export default function Admin() {
                   </button>
                 </div>
               </aside>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {hierarchyManagerOpen ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-2 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="flex w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900 sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5 dark:border-slate-800">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">Gestión de espacios</h3>
+                <p className="mt-1 text-sm text-slate-500">CRUD de edificios, pisos, zonas y espacios con su padre correspondiente.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setHierarchyManagerOpen(false);
+                  setHierarchyMessage('');
+                }}
+                className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid flex-1 min-h-0 gap-4 overflow-y-auto p-4 sm:gap-6 sm:p-6 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-4 overflow-y-auto pr-1">
+                {hierarchyError ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                    {hierarchyError}
+                  </div>
+                ) : null}
+
+                <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-base font-semibold text-slate-900 dark:text-white">Edificios</h4>
+                      <p className="text-sm text-slate-500">Cada edificio debe pertenecer a un site.</p>
+                    </div>
+                    <button type="button" onClick={resetBuildingForm} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-white dark:border-slate-700 dark:hover:bg-slate-900">Nuevo</button>
+                  </div>
+                  <div className="mt-4 grid gap-3">
+                    {hierarchyBuildings.map((building) => (
+                      <div key={building.building_id} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Site {building.site?.name ?? building.site_id}</p>
+                            <h5 className="mt-1 font-semibold text-slate-900 dark:text-white">{building.name}</h5>
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => openBuildingEditor(building)} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Editar</button>
+                            <button type="button" onClick={() => handleBuildingDelete(building.building_id)} disabled={hierarchyActionLoading} className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">Borrar</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {!hierarchyBuildings.length ? <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">No hay edificios registrados.</p> : null}
+                  </div>
+                </section>
+
+                <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-base font-semibold text-slate-900 dark:text-white">Pisos</h4>
+                      <p className="text-sm text-slate-500">Cada piso depende de un edificio.</p>
+                    </div>
+                    <button type="button" onClick={resetFloorForm} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-white dark:border-slate-700 dark:hover:bg-slate-900">Nuevo</button>
+                  </div>
+                  <div className="mt-4 grid gap-3">
+                    {hierarchyFloors.map((floor) => (
+                      <div key={floor.floor_id} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{floor.floor_type === 'parking' ? 'Parking' : 'Office'} · {floor.building?.name ?? `Edificio ${floor.building_id}`}</p>
+                            <h5 className="mt-1 font-semibold text-slate-900 dark:text-white">Piso {floor.name}</h5>
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => openFloorEditor(floor)} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Editar</button>
+                            <button type="button" onClick={() => handleFloorDelete(floor.floor_id)} disabled={hierarchyActionLoading} className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">Borrar</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {!hierarchyFloors.length ? <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">No hay pisos registrados.</p> : null}
+                  </div>
+                </section>
+
+                <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-base font-semibold text-slate-900 dark:text-white">Zonas</h4>
+                      <p className="text-sm text-slate-500">Cada zona depende de un piso.</p>
+                    </div>
+                    <button type="button" onClick={resetZoneForm} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-white dark:border-slate-700 dark:hover:bg-slate-900">Nuevo</button>
+                  </div>
+                  <div className="mt-4 grid gap-3">
+                    {hierarchyZones.map((zone) => (
+                      <div key={zone.zone_id} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{zone.floor?.building?.name ?? `Edificio ${zone.floor?.building_id ?? zone.floor_id}`}</p>
+                            <h5 className="mt-1 font-semibold text-slate-900 dark:text-white">Zona {zone.name}</h5>
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => openZoneEditor(zone)} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Editar</button>
+                            <button type="button" onClick={() => handleZoneDelete(zone.zone_id)} disabled={hierarchyActionLoading} className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">Borrar</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {!hierarchyZones.length ? <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">No hay zonas registradas.</p> : null}
+                  </div>
+                </section>
+
+                <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-base font-semibold text-slate-900 dark:text-white">Espacios</h4>
+                      <p className="text-sm text-slate-500">Cada espacio depende de una zona y de un tipo.</p>
+                    </div>
+                    <button type="button" onClick={resetSpaceForm} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-white dark:border-slate-700 dark:hover:bg-slate-900">Nuevo</button>
+                  </div>
+                  <div className="mt-4 grid gap-3">
+                    {hierarchySpaces.map((space) => (
+                      <div key={space.space_id} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{space.zone?.name ?? `Zona ${space.zone_id}`} · {space.space_type?.name ?? 'Espacio'}</p>
+                            <h5 className="mt-1 font-semibold text-slate-900 dark:text-white">{space.code}</h5>
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => openSpaceEditor(space)} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Editar</button>
+                            <button type="button" onClick={() => handleSpaceDelete(space.space_id)} disabled={hierarchyActionLoading} className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">Borrar</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {!hierarchySpaces.length ? <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">No hay espacios registrados.</p> : null}
+                  </div>
+                </section>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/60 sm:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-lg font-semibold text-slate-900 dark:text-white">Formulario</h4>
+                  <span className="text-xs text-slate-400">{hierarchyActionLoading ? 'Guardando...' : 'CRUD'}</span>
+                </div>
+
+                {hierarchyMessage ? (
+                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                    {hierarchyMessage}
+                  </div>
+                ) : null}
+
+                <div className="mt-5 space-y-6">
+                  <form onSubmit={handleBuildingSave} className="space-y-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
+                    <div className="flex items-center justify-between gap-3">
+                      <h5 className="font-semibold text-slate-900 dark:text-white">Edificio</h5>
+                      <button type="button" onClick={resetBuildingForm} className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200">Limpiar</button>
+                    </div>
+                    <input value={buildingName} onChange={(event) => setBuildingName(event.target.value)} placeholder="Nombre del edificio" className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+                    <select value={buildingSiteId} onChange={(event) => setBuildingSiteId(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                      <option value="">Selecciona un site</option>
+                      {sites.map((site) => <option key={site.site_id} value={site.site_id}>{site.name}</option>)}
+                    </select>
+                    <button type="submit" className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">{editingBuildingId ? 'Actualizar edificio' : 'Crear edificio'}</button>
+                  </form>
+
+                  <form onSubmit={handleFloorSave} className="space-y-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
+                    <div className="flex items-center justify-between gap-3">
+                      <h5 className="font-semibold text-slate-900 dark:text-white">Piso</h5>
+                      <button type="button" onClick={resetFloorForm} className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200">Limpiar</button>
+                    </div>
+                    <input value={floorName} onChange={(event) => setFloorName(event.target.value)} placeholder="Nombre del piso" className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+                    <select value={floorBuildingId} onChange={(event) => setFloorBuildingId(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                      <option value="">Selecciona un edificio</option>
+                      {hierarchyBuildings.map((building) => <option key={building.building_id} value={building.building_id}>{building.name}</option>)}
+                    </select>
+                    <select value={floorType} onChange={(event) => setFloorType(event.target.value as 'office' | 'parking')} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                      <option value="office">Oficinas</option>
+                      <option value="parking">Estacionamiento</option>
+                    </select>
+                    <button type="submit" className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">{editingFloorId ? 'Actualizar piso' : 'Crear piso'}</button>
+                  </form>
+
+                  <form onSubmit={handleZoneSave} className="space-y-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
+                    <div className="flex items-center justify-between gap-3">
+                      <h5 className="font-semibold text-slate-900 dark:text-white">Zona</h5>
+                      <button type="button" onClick={resetZoneForm} className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200">Limpiar</button>
+                    </div>
+                    <input value={zoneName} onChange={(event) => setZoneName(event.target.value)} placeholder="Nombre de la zona" className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+                    <select value={zoneFloorId} onChange={(event) => setZoneFloorId(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                      <option value="">Selecciona un piso</option>
+                      {hierarchyFloors.map((floor) => <option key={floor.floor_id} value={floor.floor_id}>{floor.name} · {floor.building?.name ?? `Edificio ${floor.building_id}`}</option>)}
+                    </select>
+                    <button type="submit" className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">{editingZoneId ? 'Actualizar zona' : 'Crear zona'}</button>
+                  </form>
+
+                  <form onSubmit={handleSpaceSave} className="space-y-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
+                    <div className="flex items-center justify-between gap-3">
+                      <h5 className="font-semibold text-slate-900 dark:text-white">Espacio</h5>
+                      <button type="button" onClick={resetSpaceForm} className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200">Limpiar</button>
+                    </div>
+                    <input value={spaceCode} onChange={(event) => setSpaceCode(event.target.value)} placeholder="Código del espacio" className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" />
+                    <select value={spaceZoneId} onChange={(event) => setSpaceZoneId(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                      <option value="">Selecciona una zona</option>
+                      {hierarchyZones.map((zone) => <option key={zone.zone_id} value={zone.zone_id}>{zone.name} · {zone.floor?.name ?? `Piso ${zone.floor_id}`}</option>)}
+                    </select>
+                    <select value={spaceTypeId} onChange={(event) => setSpaceTypeId(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                      <option value="">Selecciona un tipo</option>
+                      {spaceTypes.map((type) => <option key={type.space_type_id} value={type.space_type_id}>{type.name}</option>)}
+                    </select>
+                    <select value={spaceStatus} onChange={(event) => setSpaceStatus(event.target.value as 'available' | 'occupied' | 'maintenance' | 'blocked')} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                      <option value="available">Disponible</option>
+                      <option value="occupied">Ocupado</option>
+                      <option value="maintenance">Mantenimiento</option>
+                      <option value="blocked">Bloqueado</option>
+                    </select>
+                    <div className="flex flex-wrap gap-3 text-sm text-slate-600 dark:text-slate-300">
+                      <label className="inline-flex items-center gap-2"><input type="checkbox" checked={spaceAccessible} onChange={(event) => setSpaceAccessible(event.target.checked)} /> Accesible</label>
+                      <label className="inline-flex items-center gap-2"><input type="checkbox" checked={spacePriority} onChange={(event) => setSpacePriority(event.target.checked)} /> Prioridad</label>
+                    </div>
+                    <button type="submit" className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">{editingSpaceId ? 'Actualizar espacio' : 'Crear espacio'}</button>
+                  </form>
+                </div>
+
+                <p className="mt-4 text-xs text-slate-400">Si eliminas un padre con hijos asociados, el backend puede rechazar la operación hasta limpiar primero sus dependencias.</p>
+              </div>
             </div>
           </div>
         </div>

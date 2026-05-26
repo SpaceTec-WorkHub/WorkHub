@@ -8,6 +8,7 @@ import { Calendar as CalendarIcon, Clock, Filter, MapPin, Search, Sparkles, Cale
 import { clsx } from 'clsx';
 import 'react-day-picker/dist/style.css';
 import { getCurrentUserId } from '../../services/auth';
+import { ApiSpace, getSpace } from '../../services/space';
 import {
   createReservation,
   getReservationSpaces,
@@ -33,15 +34,15 @@ const buildLocalDateTime = (date: Date, time: string) => {
   return result;
 };
 
-const isParkingSpace = (space: ReservationSpace | ReservationRecord['space']) =>
+const isParkingSpace = (space: { space_type?: { name?: string } | null | undefined }) =>
   (space.space_type?.name ?? '').toLowerCase().includes('parking');
 
-const isDeskSpace = (space: ReservationSpace | ReservationRecord['space']) => {
+const isDeskSpace = (space: { space_type?: { name?: string } | null | undefined }) => {
   const name = (space.space_type?.name ?? '').toLowerCase();
   return name.includes('desk') || name.includes('escritorio') || name.includes('escritorios');
 };
 
-const isRoomSpace = (space: ReservationSpace | ReservationRecord['space']) => {
+const isRoomSpace = (space: { space_type?: { name?: string } | null | undefined }) => {
   const name = (space.space_type?.name ?? '').toLowerCase();
   return name.includes('room') || name.includes('sala') || name.includes('meeting') || name.includes('juntas');
 };
@@ -76,6 +77,51 @@ const getSpaceTypeLabel = (type: SpaceTypeFilter) => {
 
 const getActiveReservationStatuses = () => new Set<ReservationRecord['status']>(['reserved', 'checked_in', 'checkout_pending', 'incident']);
 
+const getSpaceStatusLabel = (status: ReservationSpace['status']) => {
+  if (status === 'available') return 'Libre';
+  if (status === 'occupied') return 'Ocupado';
+  if (status === 'maintenance') return 'Mantenimiento';
+  return 'Bloqueado';
+};
+
+const getSpaceKindLabel = (kind: SpaceTypeFilter | 'other') => {
+  if (kind === 'desk') return 'Desk';
+  if (kind === 'meeting') return 'Meeting Room';
+  if (kind === 'parking') return 'Parking';
+  return 'Espacio';
+};
+
+const getSpaceKindFromSpace = (space: { space_type?: { name?: string } | null }): SpaceTypeFilter | 'other' => {
+  if (isDeskSpace(space)) return 'desk';
+  if (isRoomSpace(space)) return 'meeting';
+  if (isParkingSpace(space)) return 'parking';
+  return 'other';
+};
+
+const getEffectiveSpaceStatus = (space: { space_id: number; status: ReservationSpace['status'] }, availableSpaceIds: Set<number>): ReservationSpace['status'] => {
+  if (space.status !== 'available') {
+    return space.status;
+  }
+
+  return availableSpaceIds.has(space.space_id) ? 'available' : 'occupied';
+};
+
+const getSpaceCardClass = (status: ReservationSpace['status']) => {
+  if (status === 'available') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300 hover:bg-emerald-100 hover:-translate-y-0.5 hover:shadow-md shadow-sm cursor-pointer';
+  }
+
+  if (status === 'occupied') {
+    return 'border-red-200 bg-red-50 text-red-700 opacity-85 cursor-not-allowed';
+  }
+
+  if (status === 'maintenance') {
+    return 'border-amber-200 bg-amber-50 text-amber-700 opacity-85 cursor-not-allowed';
+  }
+
+  return 'border-slate-200 bg-slate-100 text-slate-500 opacity-80 cursor-not-allowed';
+};
+
 function getReservationContext(search: string, state: unknown) {
   const searchParams = new URLSearchParams(search);
   const navigationState = state && typeof state === 'object' ? (state as Record<string, unknown>) : {};
@@ -103,6 +149,7 @@ function getReservationContext(search: string, state: unknown) {
 
   return {
     eventId: readPositiveNumber(navigationState.eventId, navigationState.event_id, searchParams.get('event_id')),
+    date: readString(navigationState.date, navigationState.selectedDate, searchParams.get('date')),
     startTime: readString(navigationState.startTime, navigationState.start_time, searchParams.get('start_time')),
     endTime: readString(navigationState.endTime, navigationState.end_time, searchParams.get('end_time')),
     spaceId: readPositiveNumber(
@@ -122,6 +169,16 @@ function normalizeToHHMM(value?: string | null | Date) {
   return match ? match[1] : null;
 }
 
+function parseLocalDateOnly(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  const parsedDate = new Date(year, month - 1, day);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
 export default function Reservation() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -129,8 +186,16 @@ export default function Reservation() {
     () => getReservationContext(location.search, location.state),
     [location.search, location.state],
   );
+  const summaryMode = Boolean(reservationContext.spaceId);
 
   const [date, setDate] = useState<Date | undefined>(() => {
+    if (reservationContext.date) {
+      const parsedDate = parseLocalDateOnly(reservationContext.date);
+      if (parsedDate) {
+        return parsedDate;
+      }
+    }
+
     if (reservationContext.startTime) {
       const parsed = new Date(String(reservationContext.startTime));
       if (!Number.isNaN(parsed.getTime())) {
@@ -144,6 +209,7 @@ export default function Reservation() {
   const [selectedSpaceId, setSelectedSpaceId] = useState<number | null>(null);
   const [timeSlots, setTimeSlots] = useState<ReservationTimeSlot[]>([]);
   const [spaces, setSpaces] = useState<ReservationSpace[]>([]);
+  const [allSpaces, setAllSpaces] = useState<ApiSpace[]>([]);
   const [userReservations, setUserReservations] = useState<ReservationRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<SpaceTypeFilter>('all');
@@ -158,6 +224,27 @@ export default function Reservation() {
   const currentUserId = useMemo(() => getCurrentUserId(), []);
   const selectedSpace = spaces.find((space) => space.space_id === selectedSpaceId) ?? null;
   const activeReservationStatuses = useMemo(() => getActiveReservationStatuses(), []);
+  const availableSpaceIds = useMemo(() => new Set(spaces.map((space) => space.space_id)), [spaces]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    getSpace()
+      .then((data) => {
+        if (mounted) {
+          setAllSpaces(data ?? []);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setAllSpaces([]);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const typeFilters = useMemo(
     () => [
@@ -177,23 +264,6 @@ export default function Reservation() {
       })),
     [timeSlots, date],
   );
-
-  const filteredSpaces = useMemo(() => {
-    return spaces.filter((space) => {
-      const matchesType =
-        selectedType === 'all' ||
-        (selectedType === 'desk' && isDeskSpace(space)) ||
-        (selectedType === 'meeting' && isRoomSpace(space)) ||
-        (selectedType === 'parking' && isParkingSpace(space));
-      const matchesSearch =
-        searchTerm.trim().length === 0 ||
-        `${space.code} ${(space.space_type?.name ?? 'Espacio')} ${space.zone?.name ?? ''}`
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
-
-      return matchesType && matchesSearch;
-    });
-  }, [searchTerm, selectedType, spaces]);
 
   const parkingConflictExists = useMemo(() => {
     if (!date || !selectedSlot) {
@@ -302,9 +372,70 @@ export default function Reservation() {
     return `Ya tienes reservas activas en este horario para ${blockedTypes.slice(0, -1).join(', ')} y ${blockedTypes[blockedTypes.length - 1].toLowerCase()}, por eso se ocultan esos espacios.`;
   }, [blockedTypes, date, selectedSlot]);
 
+  const hiddenSpaceKinds = useMemo(() => {
+    const kinds = new Set<SpaceTypeFilter | 'other'>();
+
+    for (const reservation of selectedSlotReservations) {
+      kinds.add(getSpaceKindFromSpace(reservation.space));
+    }
+
+    return kinds;
+  }, [selectedSlotReservations]);
+
+  const hiddenReservationDetails = useMemo(() => {
+    if (!date || !selectedSlot) {
+      return [];
+    }
+
+    return selectedSlotReservations
+      .filter((reservation) => hiddenSpaceKinds.has(getSpaceKindFromSpace(reservation.space)))
+      .map((reservation) => ({
+        reservationId: reservation.reservation_id,
+        code: reservation.space.code,
+        zone: reservation.space.zone?.name ?? 'Sin zona',
+        type: getSpaceKindLabel(getSpaceKindFromSpace(reservation.space)),
+      }));
+  }, [date, hiddenSpaceKinds, selectedSlot, selectedSlotReservations]);
+
+  const visibleSpaces = useMemo(() => {
+    return allSpaces.filter((space) => {
+      const matchesType =
+        selectedType === 'all' ||
+        (selectedType === 'desk' && isDeskSpace(space)) ||
+        (selectedType === 'meeting' && isRoomSpace(space)) ||
+        (selectedType === 'parking' && isParkingSpace(space));
+      const matchesSearch =
+        searchTerm.trim().length === 0 ||
+        `${space.code} ${(space.space_type?.name ?? 'Espacio')} ${space.zone?.name ?? ''}`
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
+
+      if (!matchesType || !matchesSearch) {
+        return false;
+      }
+
+      return !hiddenSpaceKinds.has(getSpaceKindFromSpace(space));
+    });
+  }, [allSpaces, hiddenSpaceKinds, searchTerm, selectedType]);
+
+  const visibleSpaceStats = useMemo(() => {
+    return visibleSpaces.reduce(
+      (stats, space) => {
+        const effectiveStatus = getEffectiveSpaceStatus(space, availableSpaceIds);
+        stats[effectiveStatus] += 1;
+        return stats;
+      },
+      { available: 0, occupied: 0, maintenance: 0, blocked: 0 },
+    );
+  }, [availableSpaceIds, visibleSpaces]);
+
   useEffect(() => {
     if (!currentUserId) {
       navigate('/login', { replace: true });
+      return;
+    }
+
+    if (summaryMode) {
       return;
     }
 
@@ -321,9 +452,13 @@ export default function Reservation() {
       })
       .catch(() => setUserReservations([]))
       .finally(() => setLoadingReservations(false));
-  }, [currentUserId, navigate]);
+  }, [currentUserId, navigate, summaryMode]);
 
   useEffect(() => {
+    if (summaryMode) {
+      return;
+    }
+
     if (!date) {
       setTimeSlots([]);
       setSpaces([]);
@@ -373,9 +508,13 @@ export default function Reservation() {
       .finally(() => {
         setLoadingSlots(false);
       });
-  }, [date, selectedDateKey, today, reservationContext.endTime, reservationContext.startTime]);
+  }, [date, selectedDateKey, summaryMode, today, reservationContext.endTime, reservationContext.startTime]);
 
   useEffect(() => {
+    if (summaryMode) {
+      return;
+    }
+
     if (!date || !selectedSlot) {
       setSpaces([]);
       setSelectedSpaceId(null);
@@ -427,7 +566,7 @@ export default function Reservation() {
       .finally(() => {
         setLoadingSpaces(false);
       });
-  }, [date, selectedDateKey, selectedSlot, parkingConflictExists, deskConflictExists, roomConflictExists, reservationContext.spaceCode, reservationContext.spaceId]);
+  }, [date, selectedDateKey, selectedSlot, summaryMode, parkingConflictExists, deskConflictExists, roomConflictExists, reservationContext.spaceCode, reservationContext.spaceId]);
 
   const handleDateChange = (selectedDate: Date | undefined) => {
     setDate(selectedDate);
@@ -487,6 +626,118 @@ export default function Reservation() {
   };
 
   const canConfirmReservation = Boolean(date && selectedSlot && selectedSpaceId && selectedSpace && !loadingSlots && !loadingSpaces);
+
+  const handleSummaryConfirm = async () => {
+    if (!date || !reservationContext.spaceId) {
+      setErrorMessage('No se encontró la información de la reserva.');
+      return;
+    }
+
+    const startTime = reservationContext.startTime;
+    const endTime = reservationContext.endTime;
+
+    if (!startTime || !endTime) {
+      setErrorMessage('No se encontró el horario de la reserva.');
+      return;
+    }
+
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      await createReservation({
+        start_time: buildLocalDateTime(date, normalizeToHHMM(startTime) ?? startTime).toISOString(),
+        end_time: buildLocalDateTime(date, normalizeToHHMM(endTime) ?? endTime).toISOString(),
+        space_id: reservationContext.spaceId,
+        ...(reservationContext.eventId ? { event_id: reservationContext.eventId } : {}),
+      });
+
+      setSuccessMessage(`Reserva confirmada para ${reservationContext.spaceCode ?? 'el espacio seleccionado'}.`);
+      setTimeout(() => {
+        navigate('/reservations');
+      }, 900);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'No fue posible confirmar la reserva.');
+    }
+  };
+
+  if (summaryMode) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-white">
+        <style>{css}</style>
+        <div className="mx-auto flex min-h-screen max-w-3xl items-center px-4 py-8 sm:px-5 lg:px-6">
+          <div className="w-full space-y-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-800">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-[11px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+                <Sparkles size={14} />
+                Confirmación de reserva
+              </div>
+              <h1 className="mt-3 text-[1.7rem] font-bold tracking-tight sm:text-3xl">Resumen de la reservación</h1>
+              <p className="mt-2 max-w-2xl text-[13px] text-slate-600 dark:text-slate-400">
+                Revisa el horario y confirma. Ya no se muestran espacios aquí porque la selección se hace en el mapa.
+              </p>
+            </div>
+
+            {errorMessage ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {errorMessage}
+              </div>
+            ) : null}
+
+            {successMessage ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {successMessage}
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/60">
+                <p className="text-xs uppercase tracking-wide text-slate-400">Fecha</p>
+                <p className="mt-1 text-[13px] font-semibold">
+                  {date ? format(date, 'PPP', { locale: es }) : 'Sin elegir'}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/60">
+                <p className="text-xs uppercase tracking-wide text-slate-400">Horario</p>
+                <p className="mt-1 text-[13px] font-semibold">
+                  {reservationContext.startTime && reservationContext.endTime
+                    ? `${normalizeToHHMM(reservationContext.startTime) ?? reservationContext.startTime} - ${normalizeToHHMM(reservationContext.endTime) ?? reservationContext.endTime}`
+                    : 'Sin elegir'}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/60 sm:col-span-2">
+                <p className="text-xs uppercase tracking-wide text-slate-400">Espacio</p>
+                <p className="mt-1 text-[13px] font-semibold">{reservationContext.spaceCode ?? 'Sin elegir'}</p>
+              </div>
+            </div>
+
+            {reservationContext.eventId ? (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-[13px] text-blue-700">
+                Reserva vinculada al evento #{reservationContext.eventId}.
+              </div>
+            ) : null}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => navigate('/map')}
+                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+              >
+                Volver al mapa
+              </button>
+              <button
+                type="button"
+                onClick={handleSummaryConfirm}
+                className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                Confirmar reserva
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-white">
@@ -616,8 +867,24 @@ export default function Reservation() {
                   </p>
                 </div>
                 <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-                  {filteredSpaces.length} espacio(s) disponible(s)
+                  {visibleSpaceStats.available} espacio(s) libre(s) de {visibleSpaces.length}
                 </p>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'Libres', value: visibleSpaceStats.available, tone: 'emerald' },
+                  { label: 'Ocupados', value: visibleSpaceStats.occupied, tone: 'red' },
+                  { label: 'Mantenimiento', value: visibleSpaceStats.maintenance, tone: 'amber' },
+                  { label: 'Bloqueados', value: visibleSpaceStats.blocked, tone: 'slate' },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">{item.label}</p>
+                    <p className={`mt-1 text-2xl font-bold ${item.tone === 'emerald' ? 'text-emerald-600' : item.tone === 'red' ? 'text-red-600' : item.tone === 'amber' ? 'text-amber-600' : 'text-slate-600'}`}>
+                      {item.value}
+                    </p>
+                  </div>
+                ))}
               </div>
 
               {reservationBlockMessage ? (
@@ -641,27 +908,65 @@ export default function Reservation() {
                 </div>
               ) : null}
 
+              {hiddenReservationDetails.length > 0 ? (
+                <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-2xl bg-slate-100 p-3 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
+                      <AlertCircle size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Reservas ocultas por horario
+                      </p>
+                      <p className="mt-1 text-[13px] leading-6 text-slate-600 dark:text-slate-300">
+                        Estos espacios no aparecen porque ya tienes reservas activas del mismo tipo en el horario seleccionado.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {hiddenReservationDetails.map((reservation) => (
+                          <span key={reservation.reservationId} className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                            {reservation.code} • {reservation.type} • {reservation.zone}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               {loadingSpaces ? (
                 <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-5 text-center text-[13px] text-slate-500">
                   Cargando espacios disponibles...
                 </div>
-              ) : filteredSpaces.length > 0 ? (
+              ) : visibleSpaces.length > 0 ? (
                 <div className="mt-6 grid gap-4 md:grid-cols-2 2xl:grid-cols-2">
-                  {filteredSpaces.map((space) => {
+                  {visibleSpaces.map((space) => {
+                    const effectiveStatus = getEffectiveSpaceStatus(space, availableSpaceIds);
                     const spaceType = space.space_type?.name ?? 'Espacio';
                     const isSelected = selectedSpaceId === space.space_id;
+                    const isAvailable = effectiveStatus === 'available';
 
                     return (
                       <motion.button
                         key={space.space_id}
                         type="button"
-                        whileHover={{ y: -2 }}
-                        onClick={() => setSelectedSpaceId(space.space_id)}
+                        whileHover={isAvailable ? { y: -2 } : undefined}
+                        onClick={() => {
+                          if (!isAvailable) {
+                            setErrorMessage(`${space.code} está ${getSpaceStatusLabel(effectiveStatus)} para este horario.`);
+                            return;
+                          }
+
+                          setSelectedSpaceId(space.space_id);
+                        }}
+                        disabled={!isAvailable}
                         className={clsx(
-                          'flex min-h-[148px] cursor-pointer flex-col justify-between rounded-3xl border p-4 text-left shadow-sm transition-all',
+                          'flex min-h-[148px] flex-col justify-between rounded-3xl border p-4 text-left shadow-sm transition-all',
                           isSelected
                             ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500/40 dark:bg-blue-900/20'
-                            : 'border-slate-100 bg-white hover:border-blue-200 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-800',
+                            : clsx(
+                                getSpaceCardClass(effectiveStatus),
+                                isAvailable ? 'hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-800' : '',
+                              ),
                         )}
                       >
                         <div>
@@ -670,13 +975,14 @@ export default function Reservation() {
                               {spaceType}
                             </span>
                             <span className="relative flex h-4 w-4 shrink-0">
-                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                              <span className="relative inline-flex h-4 w-4 rounded-full bg-emerald-500 ring-4 ring-emerald-100 dark:ring-emerald-950/40" />
+                              <span className={clsx('absolute inline-flex h-full w-full rounded-full opacity-75', effectiveStatus === 'available' ? 'animate-ping bg-emerald-400' : effectiveStatus === 'occupied' ? 'bg-red-400' : effectiveStatus === 'maintenance' ? 'bg-amber-400' : 'bg-slate-400')} />
+                              <span className={clsx('relative inline-flex h-4 w-4 rounded-full ring-4', effectiveStatus === 'available' ? 'bg-emerald-500 ring-emerald-100 dark:ring-emerald-950/40' : effectiveStatus === 'occupied' ? 'bg-red-500 ring-red-100 dark:ring-red-950/40' : effectiveStatus === 'maintenance' ? 'bg-amber-500 ring-amber-100 dark:ring-amber-950/40' : 'bg-slate-500 ring-slate-100 dark:ring-slate-950/40')} />
                             </span>
                           </div>
 
                           <h3 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">{space.code}</h3>
                           <p className="mt-1 text-[13px] text-slate-500 dark:text-slate-400">Zona: {space.zone?.name ?? 'Sin zona'}</p>
+                          <p className="mt-1 text-[12px] font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">{getSpaceStatusLabel(effectiveStatus)}</p>
 
                           <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium">
                             {space.is_accessible ? (
@@ -694,7 +1000,7 @@ export default function Reservation() {
 
                         <div className="mt-4 flex items-center gap-2 text-[13px] text-slate-500 dark:text-slate-400">
                           <MapPin size={15} />
-                          <span>Disponible para este horario</span>
+                          <span>{isAvailable ? 'Disponible para este horario' : `No disponible: ${getSpaceStatusLabel(effectiveStatus)}`}</span>
                         </div>
                       </motion.button>
                     );
