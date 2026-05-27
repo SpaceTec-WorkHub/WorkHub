@@ -6,6 +6,7 @@ import {
   User,
   Save,
   KeyRound,
+  X,
 } from 'lucide-react';
 
 import { getStoredSession, isAdminUser } from '../../services/auth';
@@ -19,6 +20,7 @@ type ProfileData = {
 
 type VehicleData = {
   vehicle_id: number | null;
+  owner_id: number | null;
   plate_number: string;
   brand: string;
   model: string;
@@ -26,6 +28,28 @@ type VehicleData = {
   year: string;
   seats_total: number;
 };
+
+const createEmptyVehicle = (ownerId: number | null): VehicleData => ({
+  vehicle_id: null,
+  owner_id: ownerId,
+  plate_number: '',
+  brand: '',
+  model: '',
+  color: '',
+  year: '',
+  seats_total: 5,
+});
+
+const normalizeVehicle = (vehicle: Partial<VehicleData> & { owner_id?: number | null }, ownerId: number): VehicleData => ({
+  vehicle_id: vehicle.vehicle_id ?? null,
+  owner_id: vehicle.owner_id ?? ownerId,
+  plate_number: vehicle.plate_number ?? '',
+  brand: vehicle.brand ?? '',
+  model: vehicle.model ?? '',
+  color: vehicle.color ?? '',
+  year: vehicle.year !== undefined && vehicle.year !== null ? String(vehicle.year) : '',
+  seats_total: vehicle.seats_total ?? 5,
+});
 
 export default function Profile() {
   const [photo, setPhoto] = useState<string | null>(null);
@@ -35,20 +59,20 @@ export default function Profile() {
     email: '',
   });
 
-  const [vehicle, setVehicle] = useState<VehicleData>({
-    vehicle_id: null,
-    plate_number: '',
-    brand: '',
-    model: '',
-    color: '',
-    year: '',
-    seats_total: 5,
-  });
-
-  const [hasCar, setHasCar] = useState(false);
+  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
+  const [vehicleForm, setVehicleForm] = useState<VehicleData>(createEmptyVehicle(null));
+  const [vehicleMessage, setVehicleMessage] = useState('');
+  const [passwordPanelOpen, setPasswordPanelOpen] = useState(false);
+  const [passwordVerified, setPasswordVerified] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [vehicleSaving, setVehicleSaving] = useState(false);
 
   function getCurrentSessionUser() {
     const session = getStoredSession();
@@ -70,53 +94,167 @@ export default function Profile() {
     }
   };
 
+  const refreshUserData = async () => {
+    const { userId } = getCurrentSessionUser();
+
+    if (!userId) {
+      return;
+    }
+
+    const userResponse = await fetch(`${API_URL}/users/${userId}`);
+
+    if (!userResponse.ok) {
+      throw new Error('Failed to fetch user');
+    }
+
+    const user = await userResponse.json();
+
+    setProfile({
+      full_name: user.full_name || '',
+      email: user.email || '',
+    });
+
+    const vehicleResponse = await fetch(`${API_URL}/vehicle/owner/${userId}`);
+    const vehicleList = vehicleResponse.ok ? await vehicleResponse.json() : [];
+    const nextVehicles = Array.isArray(user.vehicles) && user.vehicles.length > 0 ? user.vehicles : vehicleList;
+    const normalizedVehicles = (Array.isArray(nextVehicles) ? nextVehicles : []).map((vehicle) => normalizeVehicle(vehicle, userId));
+
+    setVehicles(normalizedVehicles);
+
+    if (normalizedVehicles.length > 0) {
+      const firstVehicle = normalizedVehicles[0];
+      setSelectedVehicleId(firstVehicle.vehicle_id);
+      setVehicleForm(firstVehicle);
+      setVehicleMessage('');
+    } else {
+      setSelectedVehicleId(null);
+      setVehicleForm(createEmptyVehicle(userId));
+      setVehicleMessage('');
+    }
+  };
+
+  const selectVehicle = (vehicle: VehicleData) => {
+    setSelectedVehicleId(vehicle.vehicle_id);
+    setVehicleForm(vehicle);
+    setVehicleMessage('Editando vehículo seleccionado.');
+  };
+
+  const startNewVehicle = () => {
+    const { userId } = getCurrentSessionUser();
+    setSelectedVehicleId(null);
+    setVehicleForm(createEmptyVehicle(userId));
+    setVehicleMessage('Nuevo vehículo. Completa los datos para guardarlo.');
+  };
+
+  const resetPasswordPanel = () => {
+    setPasswordPanelOpen(false);
+    setPasswordVerified(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordMessage('');
+  };
+
+  const handlePasswordVerify = async () => {
+    const { userId } = getCurrentSessionUser();
+
+    if (!userId) {
+      return;
+    }
+
+    if (!currentPassword.trim()) {
+      setPasswordMessage('Escribe tu contraseña actual.');
+      return;
+    }
+
+    setPasswordMessage('');
+
+    try {
+      const response = await fetch(`${API_URL}/users/${userId}/password/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ current_password: currentPassword }),
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo validar la contraseña actual.');
+      }
+
+      setPasswordVerified(true);
+      setPasswordMessage('Contraseña actual validada.');
+    } catch (error) {
+      console.error(error);
+      setPasswordVerified(false);
+      setPasswordMessage(error instanceof Error ? error.message : 'No se pudo validar la contraseña actual.');
+    }
+  };
+
+  const handlePasswordChange = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const { userId } = getCurrentSessionUser();
+
+    if (!userId) {
+      return;
+    }
+
+    if (!passwordVerified) {
+      setPasswordMessage('Primero valida tu contraseña actual.');
+      return;
+    }
+
+    if (!newPassword || !confirmPassword) {
+      setPasswordMessage('Completa la nueva contraseña y su confirmación.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage('La nueva contraseña no coincide con la confirmación.');
+      return;
+    }
+
+    setPasswordMessage('');
+
+    try {
+      const response = await fetch(`${API_URL}/users/${userId}/password`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo actualizar la contraseña.');
+      }
+
+      setPasswordMessage('Contraseña actualizada correctamente.');
+      setPasswordVerified(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      console.error(error);
+      setPasswordMessage(error instanceof Error ? error.message : 'No se pudo actualizar la contraseña.');
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
-        const { userId} = getCurrentSessionUser();
+        const { userId } = getCurrentSessionUser();
 
         if (!userId) {
           return;
         }
 
-        // USER
-        const userResponse = await fetch(
-          `${API_URL}/users/${userId}`
-        );
-
-        if (!userResponse.ok) {
-          throw new Error('Failed to fetch user');
-        }
-
-        const user = await userResponse.json();
-
-        setProfile({
-          full_name: user.full_name || '',
-          email: user.email || '',
-        });
-
-        // VEHICLE
-        const vehicleResponse = await fetch(
-          `${API_URL}/vehicle/owner/${userId}`
-        );
-
-        if (vehicleResponse.ok) {
-          const existingVehicle = await vehicleResponse.json();
-
-          setVehicle({
-            vehicle_id: existingVehicle.vehicle_id,
-            plate_number: existingVehicle.plate_number || '',
-            brand: existingVehicle.brand || '',
-            model: existingVehicle.model || '',
-            color: existingVehicle.color || '',
-            year: existingVehicle.year
-              ? String(existingVehicle.year)
-              : '',
-            seats_total: existingVehicle.seats_total || 5,
-          });
-
-          setHasCar(true);
-        }
+        await refreshUserData();
       } catch (error) {
         console.error(error);
       } finally {
@@ -131,7 +269,7 @@ export default function Profile() {
     try {
       setSaving(true);
 
-      const { userId, token } = getCurrentSessionUser();
+      const { userId } = getCurrentSessionUser();
 
       if (!userId) {
         return;
@@ -153,59 +291,109 @@ export default function Profile() {
         throw new Error('Failed to update user');
       }
 
-      // VEHICLE
-      if (hasCar) {
-        const vehiclePayload = {
-          plate_number: vehicle.plate_number,
-          brand: vehicle.brand,
-          model: vehicle.model,
-          color: vehicle.color,
-          year: vehicle.year ? Number(vehicle.year) : undefined,
-          seats_total: Number(vehicle.seats_total),
-          owner_id: userId,
-        };
-
-        if (vehicle.vehicle_id) {
-          // UPDATE VEHICLE
-          const updateVehicleResponse = await fetch(
-            `${API_URL}/vehicle/${vehicle.vehicle_id}`,
-            {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(vehiclePayload),
-            },
-          );
-
-          if (!updateVehicleResponse.ok) {
-            throw new Error('Failed to update vehicle');
-          }
-        } else {
-          // CREATE VEHICLE
-          const createVehicleResponse = await fetch(
-            `${API_URL}/vehicles`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(vehiclePayload),
-            },
-          );
-
-          if (!createVehicleResponse.ok) {
-            throw new Error('Failed to create vehicle');
-          }
-        }
-      }
-
       alert('Perfil actualizado correctamente');
+
+      await refreshUserData();
     } catch (error) {
       console.error(error);
       alert('Error actualizando perfil');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleVehicleSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const { userId } = getCurrentSessionUser();
+
+    if (!userId) {
+      return;
+    }
+
+    if (!vehicleForm.plate_number.trim() || !vehicleForm.brand.trim() || !vehicleForm.model.trim()) {
+      setVehicleMessage('Completa placas, marca y modelo.');
+      return;
+    }
+
+    setVehicleSaving(true);
+    setVehicleMessage('');
+
+    try {
+      const payload = {
+        plate_number: vehicleForm.plate_number.trim().toUpperCase(),
+        brand: vehicleForm.brand.trim(),
+        model: vehicleForm.model.trim(),
+        color: vehicleForm.color.trim(),
+        year: vehicleForm.year ? Number(vehicleForm.year) : undefined,
+        seats_total: Number(vehicleForm.seats_total),
+        owner_id: userId,
+      };
+
+      if (selectedVehicleId) {
+        const updateVehicleResponse = await fetch(`${API_URL}/vehicle/${selectedVehicleId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!updateVehicleResponse.ok) {
+          throw new Error('Failed to update vehicle');
+        }
+
+        setVehicleMessage('Vehículo actualizado correctamente.');
+      } else {
+        const createVehicleResponse = await fetch(`${API_URL}/vehicle`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!createVehicleResponse.ok) {
+          throw new Error('Failed to create vehicle');
+        }
+
+        setVehicleMessage('Vehículo creado correctamente.');
+      }
+
+      await refreshUserData();
+    } catch (error) {
+      console.error(error);
+      setVehicleMessage('Error actualizando vehículo');
+    } finally {
+      setVehicleSaving(false);
+    }
+  };
+
+  const handleVehicleDelete = async () => {
+    if (!selectedVehicleId) {
+      return;
+    }
+
+    setVehicleSaving(true);
+    setVehicleMessage('');
+
+    try {
+      const deleteResponse = await fetch(`${API_URL}/vehicle/${selectedVehicleId}`, {
+        method: 'DELETE',
+      });
+
+      if (!deleteResponse.ok) {
+        throw new Error('Failed to delete vehicle');
+      }
+
+      setVehicleMessage('Vehículo eliminado correctamente.');
+      await refreshUserData();
+      startNewVehicle();
+    } catch (error) {
+      console.error(error);
+      setVehicleMessage('Error eliminando vehículo');
+    } finally {
+      setVehicleSaving(false);
     }
   };
 
@@ -312,6 +500,10 @@ export default function Profile() {
 
               <button
                 type="button"
+                onClick={() => {
+                  setPasswordPanelOpen((current) => !current);
+                  setPasswordMessage('');
+                }}
                 className="mt-3 flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
               >
                 <KeyRound className="w-4 h-4" />
@@ -322,6 +514,111 @@ export default function Profile() {
         </div>
       </div>
 
+      {passwordPanelOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
+          onClick={resetPasswordPanel}
+        >
+          <form
+            onSubmit={handlePasswordChange}
+            className="relative w-full max-w-lg rounded-3xl border border-white/60 bg-white p-6 shadow-2xl shadow-slate-950/30"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={resetPasswordPanel}
+              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Cerrar panel"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="pr-12">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">
+                Seguridad de cuenta
+              </p>
+              <h3 className="mt-2 text-2xl font-bold text-slate-900">
+                Restablecer contraseña
+              </h3>
+              <p className="mt-2 text-sm text-slate-500">
+                Primero valida tu contraseña actual. Después podrás escribir la nueva contraseña y confirmarla.
+              </p>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <div>
+                <label className="text-sm font-medium text-slate-700">Contraseña actual</label>
+                <div className="mt-1 flex gap-2">
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(event) => {
+                      setCurrentPassword(event.target.value);
+                      setPasswordVerified(false);
+                      setPasswordMessage('');
+                    }}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Escribe tu contraseña actual"
+                  />
+                  <button
+                    type="button"
+                    onClick={handlePasswordVerify}
+                    className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                  >
+                    Validar
+                  </button>
+                </div>
+              </div>
+
+              <div className={`${passwordVerified ? 'opacity-100' : 'opacity-60'} space-y-4`}>
+                <div>
+                  <label className="text-sm font-medium text-slate-700">Nueva contraseña</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    disabled={!passwordVerified}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+                    placeholder="Escribe la nueva contraseña"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-slate-700">Confirmar nueva contraseña</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    disabled={!passwordVerified}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+                    placeholder="Repite la nueva contraseña"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs text-slate-500">
+                    {passwordVerified ? 'La contraseña actual ya fue validada.' : 'Primero valida la contraseña actual para habilitar esta sección.'}
+                  </p>
+                  <button
+                    type="submit"
+                    disabled={!passwordVerified || saving}
+                    className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  >
+                    Cambiar contraseña
+                  </button>
+                </div>
+              </div>
+
+              {passwordMessage ? (
+                <div className={`rounded-2xl border px-4 py-3 text-sm ${passwordVerified ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
+                  {passwordMessage}
+                </div>
+              ) : null}
+            </div>
+          </form>
+        </div>
+      ) : null}
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
@@ -330,138 +627,209 @@ export default function Profile() {
 
           <div>
             <h2 className="text-lg font-bold text-slate-900">
-              Datos del vehículo
+              Vehículos asociados
             </h2>
 
             <p className="text-sm text-slate-500">
-              Esta información se usa para reservas de estacionamiento.
+              Aquí ves todos los vehículos ligados a tu usuario y puedes crear o editar los que necesites.
             </p>
           </div>
         </div>
 
-        <label className="flex items-center gap-3 mb-6 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={hasCar}
-            onChange={() => setHasCar(!hasCar)}
-            className="w-4 h-4"
-          />
+        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Lista</h3>
+                <p className="text-sm text-slate-500">{vehicles.length} vehículo(s) registrados.</p>
+              </div>
 
-          Tengo carro
-        </label>
+              <button
+                type="button"
+                onClick={startNewVehicle}
+                className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+              >
+                Nuevo vehículo
+              </button>
+            </div>
 
-        {hasCar && (
-          <div className="grid md:grid-cols-2 gap-5">
+            {vehicles.length > 0 ? (
+              <div className="space-y-3">
+                {vehicles.map((item) => {
+                  const isSelected = item.vehicle_id === selectedVehicleId;
+
+                  return (
+                    <button
+                      key={item.vehicle_id ?? `${item.plate_number}-${item.brand}`}
+                      type="button"
+                      onClick={() => selectVehicle(item)}
+                      className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-lg font-bold text-slate-900">
+                            {item.plate_number || 'Sin placas'}
+                          </h4>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {item.brand || 'Sin marca'} · {item.model || 'Sin modelo'}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {item.color || 'Sin color'} · {item.year || 'Sin año'} · {item.seats_total} asientos
+                          </p>
+                        </div>
+                        <Car className="h-5 w-5 text-blue-500" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                Todavía no tienes vehículos registrados. Usa <span className="font-semibold text-slate-700">Nuevo vehículo</span> para agregar uno.
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={handleVehicleSave} className="space-y-4 rounded-2xl border border-slate-200 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-base font-semibold text-slate-900">
+                {selectedVehicleId ? 'Editar vehículo' : 'Nuevo vehículo'}
+              </h3>
+
+              {selectedVehicleId ? (
+                <button
+                  type="button"
+                  onClick={handleVehicleDelete}
+                  disabled={vehicleSaving}
+                  className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Eliminar
+                </button>
+              ) : null}
+            </div>
+
+            {vehicleMessage ? (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                {vehicleMessage}
+              </div>
+            ) : null}
+
             <div>
-              <label className="text-sm font-medium text-slate-700">
-                Número de placas
-              </label>
-
+              <label className="text-sm font-medium text-slate-700">Número de placas</label>
               <input
                 type="text"
-                value={vehicle.plate_number}
+                value={vehicleForm.plate_number}
                 onChange={(e) =>
-                  setVehicle({
-                    ...vehicle,
+                  setVehicleForm({
+                    ...vehicleForm,
                     plate_number: e.target.value.toUpperCase(),
                   })
                 }
-                className="mt-1 w-full px-4 py-3 border border-slate-300 rounded-lg uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-3 uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">
-                Marca
-              </label>
-
+              <label className="text-sm font-medium text-slate-700">Marca</label>
               <input
                 type="text"
-                value={vehicle.brand}
+                value={vehicleForm.brand}
                 onChange={(e) =>
-                  setVehicle({
-                    ...vehicle,
+                  setVehicleForm({
+                    ...vehicleForm,
                     brand: e.target.value,
                   })
                 }
-                className="mt-1 w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">
-                Modelo
-              </label>
-
+              <label className="text-sm font-medium text-slate-700">Modelo</label>
               <input
                 type="text"
-                value={vehicle.model}
+                value={vehicleForm.model}
                 onChange={(e) =>
-                  setVehicle({
-                    ...vehicle,
+                  setVehicleForm({
+                    ...vehicleForm,
                     model: e.target.value,
                   })
                 }
-                className="mt-1 w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-700">
-                Color
-              </label>
-
+              <label className="text-sm font-medium text-slate-700">Color</label>
               <input
                 type="text"
-                value={vehicle.color}
+                value={vehicleForm.color}
                 onChange={(e) =>
-                  setVehicle({
-                    ...vehicle,
+                  setVehicleForm({
+                    ...vehicleForm,
                     color: e.target.value,
                   })
                 }
-                className="mt-1 w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-slate-700">
-                Año
-              </label>
+            <div className="grid gap-5 md:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium text-slate-700">Año</label>
+                <input
+                  type="number"
+                  value={vehicleForm.year}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      year: e.target.value,
+                    })
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
 
-              <input
-                type="number"
-                value={vehicle.year}
-                onChange={(e) =>
-                  setVehicle({
-                    ...vehicle,
-                    year: e.target.value,
-                  })
-                }
-                className="mt-1 w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div>
+                <label className="text-sm font-medium text-slate-700">Total de asientos</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={vehicleForm.seats_total}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      seats_total: Number(e.target.value),
+                    })
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-slate-700">
-                Total de asientos
-              </label>
-
-              <input
-                type="number"
-                min={1}
-                value={vehicle.seats_total}
-                onChange={(e) =>
-                  setVehicle({
-                    ...vehicle,
-                    seats_total: Number(e.target.value),
-                  })
-                }
-                className="mt-1 w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={startNewVehicle}
+                className="rounded-lg border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Limpiar
+              </button>
+              <button
+                type="submit"
+                disabled={vehicleSaving}
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {vehicleSaving ? 'Guardando...' : selectedVehicleId ? 'Guardar vehículo' : 'Crear vehículo'}
+              </button>
             </div>
-          </div>
-        )}
+          </form>
+        </div>
 
         <div className="flex justify-end mt-8">
           <button

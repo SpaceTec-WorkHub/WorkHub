@@ -1147,7 +1147,7 @@ export default function Admin() {
             onClick={() => openHierarchyManager()}
             type="button"
           >
-            Abrir CRUD de jerarquía
+            Administrar espacios
           </button>
         </div>
       </div>
@@ -1321,7 +1321,7 @@ export default function Admin() {
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5 dark:border-slate-800">
               <div>
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">Gestión de espacios</h3>
-                <p className="mt-1 text-sm text-slate-500">CRUD de edificios, pisos, zonas y espacios con su padre correspondiente.</p>
+                <p className="mt-1 text-sm text-slate-500">Administrar edificios, pisos, zonas y espacios</p>
               </div>
               <button
                 type="button"
@@ -1455,7 +1455,7 @@ export default function Admin() {
               <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/60 sm:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <h4 className="text-lg font-semibold text-slate-900 dark:text-white">Formulario</h4>
-                  <span className="text-xs text-slate-400">{hierarchyActionLoading ? 'Guardando...' : 'CRUD'}</span>
+                  <span className="text-xs text-slate-400">{hierarchyActionLoading ? 'Guardando...' : ''}</span>
                 </div>
 
                 {hierarchyMessage ? (
