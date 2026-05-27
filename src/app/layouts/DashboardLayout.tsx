@@ -2,24 +2,49 @@ import React, { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import { Outlet } from 'react-router';
 import { Bell } from 'lucide-react';
-import { notifications } from '../data/notifications';
+import { getCurrentUserId } from '../../services/auth';
+import { getNotificationsByUser, UiNotification } from '../../services/notifications';
 
 export default function DashboardLayout() {
   const [showNotifications, setShowNotifications] = useState(false);
-  const [, forceUpdate] = useState(0);
+  const [notifications, setNotifications] = useState<UiNotification[]>([]);
 
   React.useEffect(() => {
-    const updateNotifications = () => forceUpdate((value) => value + 1);
+    const loadNotifications = async () => {
+      const userId = getCurrentUserId();
+
+      if (!userId) {
+        setNotifications([]);
+        return;
+      }
+
+      try {
+        const userNotifications = await getNotificationsByUser(userId);
+        setNotifications(userNotifications);
+      } catch {
+        setNotifications([]);
+      }
+    };
+
+    const updateNotifications = () => {
+      void loadNotifications();
+    };
+
+    void loadNotifications();
+    const pollingId = window.setInterval(() => {
+      void loadNotifications();
+    }, 5000);
 
     window.addEventListener('notificationsUpdated', updateNotifications);
 
     return () => {
+      window.clearInterval(pollingId);
       window.removeEventListener('notificationsUpdated', updateNotifications);
     };
   }, []);
 
   const allNotifications = notifications;
-  const unreadCount = allNotifications.filter((item) => !item.read).length;
+  const unreadCount = allNotifications.length;
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -61,8 +86,8 @@ export default function DashboardLayout() {
 
                       <p className="text-xs text-slate-500">
                         {unreadCount === 0
-                          ? 'No tienes notificaciones nuevas'
-                          : `Tienes ${unreadCount} sin leer`}
+                          ? 'No tienes notificaciones'
+                          : `Tienes ${unreadCount} notificaciones`}
                       </p>
                     </div>
 
@@ -75,11 +100,7 @@ export default function DashboardLayout() {
                         allNotifications.map((notification) => (
                           <div
                             key={notification.id}
-                            className={`px-4 py-3 border-b border-slate-100 hover:bg-slate-50 ${
-                              !notification.read
-                                ? 'bg-blue-50/60'
-                                : 'bg-white'
-                            }`}
+                            className="px-4 py-3 border-b border-slate-100 bg-white hover:bg-slate-50"
                           >
                             <p className="text-sm font-semibold text-slate-800">
                               {notification.title}
