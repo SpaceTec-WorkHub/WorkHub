@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   Users, 
@@ -8,9 +8,13 @@ import {
   MapPin, 
   Calendar,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { getParkingRecommendations, IARecommendation } from '../../services/ia';
+import { getStoredSession } from '../../services/auth';
 
 const data = [
   { name: 'Lun', ocupacion: 65 },
@@ -42,27 +46,72 @@ const StatCard = ({ title, value, subtext, icon: Icon, colorClass, trend }: any)
   </motion.div>
 );
 
-const RecommendationCard = ({ title, desc, time, type }: any) => (
+function scoreLabel(score: number): string {
+  if (score >= 0.8) return 'Altamente recomendado';
+  if (score >= 0.5) return 'Buena opción';
+  return 'Disponible';
+}
+
+function scoreColor(score: number): string {
+  if (score >= 0.8) return 'bg-emerald-100 text-emerald-700';
+  if (score >= 0.5) return 'bg-blue-100 text-blue-700';
+  return 'bg-slate-100 text-slate-600';
+}
+
+const ParkingRecommendationCard = ({ rec }: { rec: IARecommendation }) => (
   <div className="flex items-start gap-4 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors">
-    <div className={`p-2 rounded-full ${type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
-      {type === 'warning' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
+    <div className="p-2 rounded-full bg-blue-100 text-blue-600 shrink-0">
+      <Car size={18} />
     </div>
-    <div>
-      <h4 className="font-semibold text-slate-800 dark:text-slate-200">{title}</h4>
-      <p className="text-sm text-slate-500 mt-1">{desc}</p>
-      <span className="text-xs text-slate-400 mt-2 block">{time}</span>
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+          Cajón #{rec.space_id} — {rec.location}
+        </h4>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${scoreColor(rec.recommendation_score)}`}>
+          {Math.round(rec.recommendation_score * 100)}%
+        </span>
+      </div>
+      <p className="text-sm text-slate-500 mt-0.5">{scoreLabel(rec.recommendation_score)}</p>
     </div>
   </div>
 );
 
 export default function Dashboard() {
+  const [recommendations, setRecommendations] = useState<IARecommendation[]>([]);
+  const [loadingRecs, setLoadingRecs] = useState(true);
+  const [recsError, setRecsError] = useState('');
+
+  const session = getStoredSession();
+  const user = session?.user as { full_name?: string; first_name?: string } | undefined;
+  const displayName = user?.full_name ?? user?.first_name ?? 'Usuario';
+
+  useEffect(() => {
+    getParkingRecommendations()
+      .then((data) => {
+        // Sort by score desc, show top 3
+        const sorted = [...data].sort((a, b) => b.recommendation_score - a.recommendation_score);
+        setRecommendations(sorted.slice(0, 3));
+      })
+      .catch((err) => setRecsError(err.message))
+      .finally(() => setLoadingRecs(false));
+  }, []);
+
+  const today = new Date().toLocaleDateString('es-MX', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const todayFormatted = today.charAt(0).toUpperCase() + today.slice(1);
+
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Buenos días, Juan</h1>
-          <p className="text-slate-500 dark:text-slate-400">Aquí tienes el resumen de hoy, 28 de Febrero, 2026.</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Buenos días, {displayName}</h1>
+          <p className="text-slate-500 dark:text-slate-400">Aquí tienes el resumen de hoy, {todayFormatted}.</p>
         </div>
         <div className="flex gap-3">
           <button className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
@@ -141,40 +190,59 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right Sidebar - Recommendations & Quick Actions */}
+        {/* Right Sidebar - AI Recommendations & Quick Actions */}
         <div className="space-y-6">
+          {/* AI Parking Recommendations */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Recomendaciones IA</h3>
-            <div className="space-y-4">
-              <RecommendationCard 
-                title="Evita el tráfico de las 18:00"
-                desc="Sugerimos salir a las 17:30 hoy basado en el clima."
-                time="Hace 10 min"
-                type="warning"
-              />
-              <RecommendationCard 
-                title="Reserva Sala A ahora"
-                desc="Suele ocuparse completamente para las 10:00 AM los lunes."
-                time="Hace 30 min"
-                type="info"
-              />
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles size={18} className="text-blue-500" />
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Recomendaciones IA</h3>
             </div>
+
+            {loadingRecs && (
+              <div className="flex items-center justify-center gap-2 py-8 text-slate-400">
+                <Loader2 size={18} className="animate-spin" />
+                <span className="text-sm">Consultando modelo...</span>
+              </div>
+            )}
+
+            {!loadingRecs && recsError && (
+              <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg text-red-600 text-sm">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <span>No se pudieron cargar las recomendaciones. {recsError}</span>
+              </div>
+            )}
+
+            {!loadingRecs && !recsError && recommendations.length === 0 && (
+              <p className="text-sm text-slate-400 text-center py-6">
+                No hay recomendaciones disponibles en este momento.
+              </p>
+            )}
+
+            {!loadingRecs && !recsError && recommendations.length > 0 && (
+              <div className="space-y-3">
+                {recommendations.map((rec) => (
+                  <ParkingRecommendationCard key={rec.space_id} rec={rec} />
+                ))}
+              </div>
+            )}
+
             <button className="w-full mt-4 py-2 text-sm text-blue-600 font-medium hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
               Ver más sugerencias
             </button>
           </div>
 
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
-             <div className="relative z-10">
-                <h3 className="font-bold text-lg mb-2">Check-in Pendiente</h3>
-                <p className="text-slate-300 text-sm mb-4">Tienes una reserva activa para hoy a las 09:00 AM.</p>
-                <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium w-full transition-colors">
-                  Hacer Check-in
-                </button>
-             </div>
-             <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-4 translate-y-4">
-               <MapPin size={100} />
-             </div>
+            <div className="relative z-10">
+              <h3 className="font-bold text-lg mb-2">Check-in Pendiente</h3>
+              <p className="text-slate-300 text-sm mb-4">Tienes una reserva activa para hoy a las 09:00 AM.</p>
+              <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium w-full transition-colors">
+                Hacer Check-in
+              </button>
+            </div>
+            <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-4 translate-y-4">
+              <MapPin size={100} />
+            </div>
           </div>
         </div>
       </div>
