@@ -14,7 +14,14 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { clsx } from 'clsx';
-import { clearSession } from '../../services/auth';
+import { clearSession, getStoredSession } from '../../services/auth';
+
+type SidebarUser = {
+  full_name?: string | null;
+  email?: string | null;
+  role?: { name?: string | null } | null;
+  user_type?: string | null;
+};
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -30,6 +37,11 @@ const navItems = [
 
 export default function Sidebar() {
   const navigate = useNavigate();
+  const session = getStoredSession();
+  const user = session?.user as SidebarUser | undefined;
+  const displayName = user?.full_name?.trim() || user?.email?.trim() || 'Usuario';
+  const roleName = (user?.role?.name ?? user?.user_type ?? '').toLowerCase();
+  const displayRole = roleName === 'admin' ? 'admin' : 'user';
 
   return (
     <div className="w-64 h-screen bg-white border-r border-slate-200 flex flex-col shadow-sm fixed left-0 top-0 z-10">
@@ -82,14 +94,12 @@ export default function Sidebar() {
           onClick={() => navigate('/profile')}
           className="flex items-center gap-3 mb-4 px-2 py-2 rounded-xl hover:bg-slate-100 transition-colors w-full text-left"
         >
-          <img
-            src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-            alt="Usuario"
-            className="w-10 h-10 rounded-full border-2 border-white shadow-sm object-cover"
-          />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-slate-500 shadow-sm">
+            <User size={20} />
+          </div>
           <div>
-            <p className="text-sm font-semibold text-slate-800">Carlos Ruiz</p>
-            <p className="text-xs text-slate-500">UX Designer</p>
+            <p className="text-sm font-semibold text-slate-800">{displayName}</p>
+            <p className="text-xs text-slate-500">{displayRole}</p>
           </div>
         </button>
 

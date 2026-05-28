@@ -118,9 +118,19 @@ export async function getReservationTimeSlots(date: string) {
   return apiRequest<ReservationTimeSlot[]>(`/reservation/availability/slots?date=${encodeURIComponent(date)}`);
 }
 
-export async function getReservationSpaces(date: string, startTime: string, endTime: string) {
+export async function getReservationSpaces(date: string, startTime: string, endTime: string, userId?: number | null) {
+  const searchParams = new URLSearchParams({
+    date,
+    start_time: startTime,
+    end_time: endTime,
+  });
+
+  if (userId) {
+    searchParams.set('user_id', String(userId));
+  }
+
   return apiRequest<ReservationSpace[]>(
-    `/reservation/availability/spaces?date=${encodeURIComponent(date)}&start_time=${encodeURIComponent(startTime)}&end_time=${encodeURIComponent(endTime)}`,
+    `/reservation/availability/spaces?${searchParams.toString()}`,
   );
 }
 

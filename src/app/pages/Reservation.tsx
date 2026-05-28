@@ -61,11 +61,11 @@ const isTimeSlotPassed = (slot: ReservationTimeSlot, selectedDate: Date): boolea
   }
 
   const now = new Date();
-  const [slotEndHours, slotEndMinutes] = slot.end_time.split(':').map(Number);
-  const slotEndTime = new Date(selectedDate);
-  slotEndTime.setHours(slotEndHours, slotEndMinutes, 0, 0);
+  const [slotStartHours, slotStartMinutes] = slot.start_time.split(':').map(Number);
+  const slotStartTime = new Date(selectedDate);
+  slotStartTime.setHours(slotStartHours, slotStartMinutes, 0, 0);
 
-  return now >= slotEndTime;
+  return now >= slotStartTime;
 };
 
 const getSpaceTypeLabel = (type: SpaceTypeFilter) => {
@@ -340,38 +340,6 @@ export default function Reservation() {
     });
   }, [selectedSlotReservations, selectedType]);
 
-  const blockedTypes = useMemo(() => {
-    const types: string[] = [];
-
-    if (parkingConflictExists) {
-      types.push('Parking');
-    }
-    if (deskConflictExists) {
-      types.push('Desk');
-    }
-    if (roomConflictExists) {
-      types.push('Meeting Room');
-    }
-
-    return types;
-  }, [deskConflictExists, parkingConflictExists, roomConflictExists]);
-
-  const reservationBlockMessage = useMemo(() => {
-    if (!date || !selectedSlot) {
-      return '';
-    }
-
-    if (blockedTypes.length === 0) {
-      return '';
-    }
-
-    if (blockedTypes.length === 1) {
-      return `Ya tienes una reserva de ${blockedTypes[0].toLowerCase()} en este horario, por eso no aparecen más espacios de ese tipo.`;
-    }
-
-    return `Ya tienes reservas activas en este horario para ${blockedTypes.slice(0, -1).join(', ')} y ${blockedTypes[blockedTypes.length - 1].toLowerCase()}, por eso se ocultan esos espacios.`;
-  }, [blockedTypes, date, selectedSlot]);
-
   const hiddenSpaceKinds = useMemo(() => {
     const kinds = new Set<SpaceTypeFilter | 'other'>();
 
@@ -381,6 +349,24 @@ export default function Reservation() {
 
     return kinds;
   }, [selectedSlotReservations]);
+
+  const reservationBlockMessage = useMemo(() => {
+    if (!date || !selectedSlot || hiddenSpaceKinds.size === 0) {
+      return '';
+    }
+
+    const hiddenTypes = Array.from(hiddenSpaceKinds).map((kind) => getSpaceKindLabel(kind));
+
+    if (hiddenTypes.length === 1) {
+      return `No se muestran cards de ${hiddenTypes[0]} porque ya tienes una reserva activa de ese mismo tipo en este horario.`;
+    }
+
+    if (hiddenTypes.length === 2) {
+      return `No se muestran cards de ${hiddenTypes[0]} y ${hiddenTypes[1]} porque ya tienes reservas activas de esos mismos tipos en este horario.`;
+    }
+
+    return `No se muestran cards de ${hiddenTypes.slice(0, -1).join(', ')} y ${hiddenTypes[hiddenTypes.length - 1]} porque ya tienes reservas activas de esos mismos tipos en este horario.`;
+  }, [date, hiddenSpaceKinds, selectedSlot]);
 
   const hiddenReservationDetails = useMemo(() => {
     if (!date || !selectedSlot) {
@@ -398,7 +384,7 @@ export default function Reservation() {
   }, [date, hiddenSpaceKinds, selectedSlot, selectedSlotReservations]);
 
   const visibleSpaces = useMemo(() => {
-    return allSpaces.filter((space) => {
+    return spaces.filter((space) => {
       const matchesType =
         selectedType === 'all' ||
         (selectedType === 'desk' && isDeskSpace(space)) ||
@@ -416,7 +402,7 @@ export default function Reservation() {
 
       return !hiddenSpaceKinds.has(getSpaceKindFromSpace(space));
     });
-  }, [allSpaces, hiddenSpaceKinds, searchTerm, selectedType]);
+  }, [hiddenSpaceKinds, searchTerm, selectedType, spaces]);
 
   const visibleSpaceStats = useMemo(() => {
     return visibleSpaces.reduce(
@@ -524,7 +510,7 @@ export default function Reservation() {
     setLoadingSpaces(true);
     setErrorMessage('');
 
-    getReservationSpaces(selectedDateKey, selectedSlot.start_time, selectedSlot.end_time)
+    getReservationSpaces(selectedDateKey, selectedSlot.start_time, selectedSlot.end_time, currentUserId)
       .then((availableSpaces) => {
         let nextSpaces = availableSpaces;
 
@@ -626,6 +612,27 @@ export default function Reservation() {
   };
 
   const canConfirmReservation = Boolean(date && selectedSlot && selectedSpaceId && selectedSpace && !loadingSlots && !loadingSpaces);
+
+  const hiddenSpacesBanner = reservationBlockMessage ? (
+    <div className="mb-6 rounded-[2rem] border-2 border-amber-300 bg-gradient-to-r from-amber-100 via-orange-50 to-amber-100 px-5 py-4 text-amber-950 shadow-lg shadow-amber-500/10 ring-1 ring-amber-200/70 dark:border-amber-800 dark:from-amber-950/60 dark:via-slate-900 dark:to-amber-950/60 dark:text-amber-50 dark:shadow-amber-950/30 dark:ring-amber-900/40">
+      <div className="flex items-start gap-4">
+        <div className="rounded-2xl bg-amber-200 p-3 text-amber-800 shadow-sm dark:bg-amber-900/50 dark:text-amber-100">
+          <CalendarClock size={24} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[12px] font-black uppercase tracking-[0.25em] text-amber-700 dark:text-amber-200">
+            Cards ocultas por reserva del mismo tipo
+          </p>
+          <p className="mt-1 text-[15px] font-bold leading-6 text-amber-950 dark:text-white">
+            {reservationBlockMessage}
+          </p>
+          <p className="mt-1 text-[13px] leading-5 text-amber-800 dark:text-amber-100">
+            Cambia el horario si quieres ver esas cards en la lista.
+          </p>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const handleSummaryConfirm = async () => {
     if (!date || !reservationContext.spaceId) {
@@ -773,6 +780,8 @@ export default function Reservation() {
           </div>
         ) : null}
 
+        {hiddenSpacesBanner}
+
         <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
           <aside className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-800 lg:sticky lg:top-6 lg:self-start lg:flex lg:h-[calc(100vh-3rem)] lg:flex-col lg:overflow-hidden lg:space-y-3">
             <div className="rounded-2xl bg-slate-50 p-2.5 dark:bg-slate-900/60">
@@ -887,27 +896,6 @@ export default function Reservation() {
                 ))}
               </div>
 
-              {reservationBlockMessage ? (
-                <div className="mt-4 rounded-[1.5rem] border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-4 text-amber-950 shadow-sm dark:border-amber-900/40 dark:from-amber-950/40 dark:to-slate-900/40 dark:text-amber-50">
-                  <div className="flex items-start gap-4">
-                    <div className="rounded-2xl bg-amber-100 p-3 text-amber-700 shadow-sm dark:bg-amber-900/40 dark:text-amber-200">
-                      <CalendarClock size={22} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-amber-700 dark:text-amber-200">
-                        Reserva detectada en este horario
-                      </p>
-                      <p className="mt-1 text-[15px] font-bold leading-6 text-amber-950 dark:text-white">
-                        Ya tienes reservado {blockedTypes.join(' y ')} en este bloque.
-                      </p>
-                      <p className="mt-1 text-[13px] leading-5 text-amber-800 dark:text-amber-100">
-                        Esos tipos se ocultan automáticamente. Puedes cambiar el horario para ver más opciones.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
               {hiddenReservationDetails.length > 0 ? (
                 <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
                   <div className="flex items-start gap-3">
@@ -916,10 +904,10 @@ export default function Reservation() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Reservas ocultas por horario
+                        Cards ocultas por tipo reservado
                       </p>
                       <p className="mt-1 text-[13px] leading-6 text-slate-600 dark:text-slate-300">
-                        Estos espacios no aparecen porque ya tienes reservas activas del mismo tipo en el horario seleccionado.
+                        No aparecen porque ya tienes una reserva activa del mismo tipo en el horario seleccionado.
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {hiddenReservationDetails.map((reservation) => (

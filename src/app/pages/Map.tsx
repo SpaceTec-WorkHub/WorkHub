@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   AlertTriangle,
   Building2,
@@ -71,6 +71,24 @@ const getTodayLocalDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
+const getCurrentTimeString = () => {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
+const parseLocalDateString = (value: string) => {
+  const [year, month, day] = value.split('-').map(Number);
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  const parsedDate = new Date(year, month - 1, day);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
 const getInitialTimeRange = () => {
   const now = new Date();
   const start = new Date(now);
@@ -102,14 +120,45 @@ const getSelectedRange = (selectedDate: string, startTime: string, endTime: stri
     return null;
   }
 
-  const start = buildLocalDateTime(new Date(selectedDate), startTime);
-  const end = buildLocalDateTime(new Date(selectedDate), endTime);
+  const selectedLocalDate = parseLocalDateString(selectedDate);
+  if (!selectedLocalDate) {
+    return null;
+  }
+
+  const start = buildLocalDateTime(selectedLocalDate, startTime);
+  const end = buildLocalDateTime(selectedLocalDate, endTime);
 
   if (end <= start) {
     return null;
   }
 
   return { start, end };
+};
+
+const getTimeInputMin = (selectedDate: string, startTime?: string) => {
+  const today = getTodayLocalDateString();
+  if (selectedDate !== today) {
+    return undefined;
+  }
+
+  if (startTime && startTime.trim().length > 0) {
+    return startTime;
+  }
+
+  return getCurrentTimeString();
+};
+
+const isTimeBeforeNowForSelectedDate = (selectedDate: string, time: string) => {
+  if (!selectedDate || !time || selectedDate !== getTodayLocalDateString()) {
+    return false;
+  }
+
+  const selectedLocalDate = parseLocalDateString(selectedDate);
+  if (!selectedLocalDate) {
+    return false;
+  }
+
+  return buildLocalDateTime(selectedLocalDate, time) < new Date();
 };
 
 const isParkingSpace = (space: { space_type?: { name?: string } | null }) => (space.space_type?.name ?? '').toLowerCase().includes('parking');
@@ -384,36 +433,54 @@ export default function MapView() {
     let mounted = true;
     setLoadingAvailability(true);
 
-    getReservationSpaces(selectedDate, startTime, endTime)
-      .then((availableSpaces) => {
-        if (!mounted) {
-          return;
-        }
+    // Request availability both for the current user and for anonymous (all users)
+    // so we can compute which space types were removed by the server when
+    // filtering for the user (these are the types we should hide in the map).
+    Promise.all([
+      getReservationSpaces(selectedDate, startTime, endTime, currentUserId),
+      getReservationSpaces(selectedDate, startTime, endTime),
+    ])
+      .then(([availableForUser, availableAll]) => {
+        if (!mounted) return;
 
         const nextAvailability = new Map<number, SpaceStatus>();
-        for (const space of availableSpaces) {
-          nextAvailability.set(space.space_id, 'available');
-        }
+        for (const space of availableForUser) nextAvailability.set(space.space_id, 'available');
 
         setAvailabilityById(nextAvailability);
-      })
-      .catch(() => {
-        if (!mounted) {
-          return;
+
+        // Build sets of kinds present in each response
+        const allById = new Map(spaces.map((s) => [s.space_id, s]));
+
+        const kindsAll = new Set<SpaceKind>();
+        for (const s of availableAll) {
+          const full = allById.get(s.space_id) ?? s;
+          kindsAll.add(getSpaceKind(full));
         }
 
+        const kindsForUser = new Set<SpaceKind>();
+        for (const s of availableForUser) {
+          const full = allById.get(s.space_id) ?? s;
+          kindsForUser.add(getSpaceKind(full));
+        }
+
+        const removedKinds = new Set<SpaceKind>();
+        for (const k of kindsAll) if (!kindsForUser.has(k)) removedKinds.add(k);
+
+        hiddenKindsRef.current = removedKinds;
+      })
+      .catch(() => {
+        if (!mounted) return;
         setAvailabilityById(new Map());
+        hiddenKindsRef.current = new Set();
       })
       .finally(() => {
-        if (mounted) {
-          setLoadingAvailability(false);
-        }
+        if (mounted) setLoadingAvailability(false);
       });
 
     return () => {
       mounted = false;
     };
-  }, [endTime, selectedDate, startTime]);
+  }, [endTime, selectedDate, startTime, currentUserId]);
 
   const tree = useMemo<MapBuilding[]>(() => {
     return [...buildings]
@@ -435,10 +502,6 @@ export default function MapView() {
           })),
       }));
   }, [buildings, floors, spaces, zones]);
-
-  const selectedBuilding = useMemo(() => tree.find((building) => building.building_id === selectedBuildingId) ?? null, [selectedBuildingId, tree]);
-  const selectedFloor = useMemo(() => selectedBuilding?.floors.find((floor) => floor.floor_id === selectedFloorId) ?? null, [selectedBuilding, selectedFloorId]);
-  const selectedZone = useMemo(() => selectedFloor?.zones.find((zone) => zone.zone_id === selectedZoneId) ?? null, [selectedFloor, selectedZoneId]);
 
   const selectedRange = useMemo(() => getSelectedRange(selectedDate, startTime, endTime), [endTime, selectedDate, startTime]);
   const availableSpaceIds = useMemo(() => new Set(availabilityById.keys()), [availabilityById]);
@@ -504,6 +567,8 @@ export default function MapView() {
     });
   }, [activeReservationStatuses, endTime, selectedDate, startTime, userReservations]);
 
+  const hiddenKindsRef = useRef<Set<SpaceKind>>(new Set());
+
   const hiddenTypes = useMemo(() => {
     const kinds = new Set<SpaceKind>();
 
@@ -511,16 +576,45 @@ export default function MapView() {
       kinds.add(getSpaceKind(reservation.space));
     }
 
+    // Merge server-derived removed kinds (computed in availability effect)
+    for (const k of hiddenKindsRef.current) kinds.add(k);
+
     return kinds;
   }, [slotReservations]);
 
-  const visibleZoneSpaces = useMemo(() => {
-    if (!selectedZone) {
-      return [];
-    }
+  const visibleTree = useMemo<MapBuilding[]>(() => {
+    return tree
+      .map((building) => ({
+        ...building,
+        floors: building.floors
+          .map((floor) => ({
+            ...floor,
+            zones: floor.zones
+              .map((zone) => ({
+                ...zone,
+                spaces: zone.spaces.filter((space) => !hiddenTypes.has(getSpaceKind(space))),
+              }))
+              .filter((zone) => zone.spaces.length > 0),
+          }))
+          .filter((floor) => floor.zones.length > 0),
+      }))
+      .filter((building) => building.floors.length > 0);
+  }, [hiddenTypes, tree]);
 
-    return selectedZone.spaces.filter((space) => !hiddenTypes.has(getSpaceKind(space)));
-  }, [hiddenTypes, selectedZone]);
+  const selectedBuilding = useMemo(
+    () => visibleTree.find((building) => building.building_id === selectedBuildingId) ?? null,
+    [selectedBuildingId, visibleTree],
+  );
+  const selectedFloor = useMemo(
+    () => selectedBuilding?.floors.find((floor) => floor.floor_id === selectedFloorId) ?? null,
+    [selectedBuilding, selectedFloorId],
+  );
+  const selectedZone = useMemo(
+    () => selectedFloor?.zones.find((zone) => zone.zone_id === selectedZoneId) ?? null,
+    [selectedFloor, selectedZoneId],
+  );
+
+  const visibleZoneSpaces = useMemo(() => selectedZone?.spaces ?? [], [selectedZone]);
 
   const selectedSpaceEffectiveStatus = useMemo(() => {
     if (!selectedSpace) {
@@ -616,14 +710,47 @@ export default function MapView() {
   ];
 
   const hiddenTypesMessage = hiddenTypes.size > 0
-    ? `Ya tienes una reserva activa de ${Array.from(hiddenTypes)
+    ? `No se muestran cards de ${Array.from(hiddenTypes)
         .map((kind) => (kind === 'parking' ? 'Parking' : kind === 'meeting' ? 'Meeting Room' : 'Desk'))
-        .join(', ')} en este horario, por eso esos espacios no aparecen.`
+        .join(', ')} porque ya tienes una reserva activa de ese mismo tipo en este horario.`
     : '';
 
   const availabilityMessage = loadingAvailability || loadingBlocks
     ? 'Actualizando disponibilidad...'
-    : 'Color en tiempo real según el horario elegido.';
+    : '';
+
+  const handleDateChange = (nextDate: string) => {
+    setSelectedDate(nextDate);
+    setSelectedSpace(null);
+
+    if (isTimeBeforeNowForSelectedDate(nextDate, startTime)) {
+      setStartTime(getCurrentTimeString());
+    }
+
+    if (isTimeBeforeNowForSelectedDate(nextDate, endTime)) {
+      setEndTime(getCurrentTimeString());
+    }
+  };
+
+  const handleStartTimeChange = (nextTime: string) => {
+    if (isTimeBeforeNowForSelectedDate(selectedDate, nextTime)) {
+      toast.error('No puedes seleccionar una hora de inicio anterior a la actual.');
+      return;
+    }
+
+    setStartTime(nextTime);
+    setSelectedSpace(null);
+  };
+
+  const handleEndTimeChange = (nextTime: string) => {
+    if (isTimeBeforeNowForSelectedDate(selectedDate, nextTime)) {
+      toast.error('No puedes seleccionar una hora de fin anterior a la actual.');
+      return;
+    }
+
+    setEndTime(nextTime);
+    setSelectedSpace(null);
+  };
 
   if (loading) {
     return <div className="rounded-3xl border border-slate-200 bg-white p-8 text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900">Cargando mapa...</div>;
@@ -640,7 +767,7 @@ export default function MapView() {
           <div className="max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
               <Layers3 size={14} />
-              Mapa jerárquico
+              Mapa de Espacios
             </div>
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Edificios, pisos, zonas y espacios</h1>
@@ -651,7 +778,7 @@ export default function MapView() {
           <div className="grid gap-3 sm:grid-cols-3 lg:w-[32rem]">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
               <p className="text-xs uppercase tracking-wider text-slate-400">Edificios</p>
-              <p className="mt-1 text-2xl font-bold">{tree.length}</p>
+              <p className="mt-1 text-2xl font-bold">{visibleTree.length}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
               <p className="text-xs uppercase tracking-wider text-slate-400">Pisos</p>
@@ -659,11 +786,32 @@ export default function MapView() {
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
               <p className="text-xs uppercase tracking-wider text-slate-400">Espacios</p>
-              <p className="mt-1 text-2xl font-bold">{spaces.length}</p>
+              <p className="mt-1 text-2xl font-bold">{visibleTree.reduce((total, building) => total + building.floors.reduce((floorTotal, floor) => floorTotal + floor.zones.reduce((zoneTotal, zone) => zoneTotal + zone.spaces.length, 0), 0), 0)}</p>
             </div>
           </div>
         </div>
       </div>
+
+      {hiddenTypesMessage ? (
+        <div className="rounded-[2rem] border-2 border-amber-300 bg-gradient-to-r from-amber-100 via-orange-50 to-amber-100 px-5 py-4 text-amber-950 shadow-lg shadow-amber-500/10 ring-1 ring-amber-200/70 dark:border-amber-800 dark:from-amber-950/60 dark:via-slate-900 dark:to-amber-950/60 dark:text-amber-50 dark:shadow-amber-950/30 dark:ring-amber-900/40">
+          <div className="flex items-start gap-4">
+            <div className="rounded-2xl bg-amber-200 p-3 text-amber-800 shadow-sm dark:bg-amber-900/50 dark:text-amber-100">
+              <AlertTriangle size={24} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-black uppercase tracking-[0.25em] text-amber-700 dark:text-amber-200">
+                Cards ocultas por reserva del mismo tipo
+              </p>
+              <p className="mt-1 text-[15px] font-bold leading-6 text-amber-950 dark:text-white">
+                {hiddenTypesMessage}
+              </p>
+              <p className="mt-1 text-[13px] leading-5 text-amber-800 dark:text-amber-100">
+                Cambia el horario para volver a ver esas cards.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="grid gap-3 lg:grid-cols-[1.2fr_0.9fr_0.9fr]">
@@ -673,10 +821,8 @@ export default function MapView() {
             <input
               type="date"
               value={selectedDate}
-              onChange={(event) => {
-                setSelectedDate(event.target.value);
-                setSelectedSpace(null);
-              }}
+              min={getTodayLocalDateString()}
+              onChange={(event) => handleDateChange(event.target.value)}
               className="w-full bg-transparent outline-none"
             />
           </label>
@@ -687,10 +833,8 @@ export default function MapView() {
             <input
               type="time"
               value={startTime}
-              onChange={(event) => {
-                setStartTime(event.target.value);
-                setSelectedSpace(null);
-              }}
+              min={getTimeInputMin(selectedDate)}
+              onChange={(event) => handleStartTimeChange(event.target.value)}
               className="w-full bg-transparent outline-none"
             />
           </label>
@@ -701,10 +845,8 @@ export default function MapView() {
             <input
               type="time"
               value={endTime}
-              onChange={(event) => {
-                setEndTime(event.target.value);
-                setSelectedSpace(null);
-              }}
+              min={getTimeInputMin(selectedDate, startTime)}
+              onChange={(event) => handleEndTimeChange(event.target.value)}
               className="w-full bg-transparent outline-none"
             />
           </label>
@@ -772,7 +914,7 @@ export default function MapView() {
 
         {stage === 'building' ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {tree.map((building) => {
+            {visibleTree.map((building) => {
               const stats = getStatusStats(building.floors.flatMap((floor) => floor.zones.flatMap((zone) => zone.spaces)), resolvedStatusById);
               return (
                 <HierarchyCard
@@ -973,16 +1115,6 @@ export default function MapView() {
           </div>
         </div>
       ) : null}
-
-      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/50">
-        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
-          <Zap size={18} />
-          <h3 className="font-semibold">Identificación de niveles</h3>
-        </div>
-        <p className="mt-3 text-sm text-slate-500">
-          Los pisos de estacionamiento están marcados como <span className="font-semibold text-slate-700 dark:text-slate-200">Estacionamiento</span> y los pisos de oficina como <span className="font-semibold text-slate-700 dark:text-slate-200">Oficinas</span>.
-        </p>
-      </div>
     </div>
   );
 }

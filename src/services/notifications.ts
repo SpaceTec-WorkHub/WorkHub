@@ -7,6 +7,7 @@ export type BackendNotification = {
   reason: string;
   user_id: number;
   createdAt?: string;
+  time?: string;
 };
 
 export type UiNotification = {
@@ -82,7 +83,13 @@ export async function getNotificationsByUser(userId: number) {
     id: notification.notification_id,
     title: notification.title,
     message: notification.content,
-    time: formatNotificationTime(notification.createdAt),
+    time: notification.time ?? formatNotificationTime(notification.createdAt),
     type: mapReasonToType(notification.reason),
   }));
+}
+
+export async function deleteNotification(notificationId: number) {
+  await apiRequest(`/notifications/${notificationId}`, {
+    method: 'DELETE',
+  });
 }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   Users, 
@@ -6,11 +6,13 @@ import {
   Clock, 
   TrendingUp, 
   MapPin, 
-  Calendar,
   AlertCircle,
   CheckCircle2
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { getCurrentUserId } from '../../services/auth';
+
+const API_URL = (import.meta as ImportMeta & { env: { VITE_API_URL?: string } }).env.VITE_API_URL ?? '';
 
 const data = [
   { name: 'Lun', ocupacion: 65 },
@@ -55,22 +57,73 @@ const RecommendationCard = ({ title, desc, time, type }: any) => (
   </div>
 );
 
+type DashboardUser = {
+  full_name: string;
+  email: string;
+};
+
 export default function Dashboard() {
+  const [user, setUser] = useState<DashboardUser>({ full_name: '', email: '' });
+  const [loadingUser, setLoadingUser] = useState(true);
+
+  useEffect(() => {
+    const userId = getCurrentUserId();
+
+    if (!userId) {
+      setLoadingUser(false);
+      return;
+    }
+
+    let mounted = true;
+    setLoadingUser(true);
+
+    fetch(`${API_URL}/users/${userId}`)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('No se pudo cargar el usuario');
+        }
+
+        return response.json() as Promise<Partial<DashboardUser>>;
+      })
+      .then((data) => {
+        if (!mounted) {
+          return;
+        }
+
+        setUser({
+          full_name: data.full_name ?? '',
+          email: data.email ?? '',
+        });
+      })
+      .catch(() => {
+        if (mounted) {
+          setUser({ full_name: '', email: '' });
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoadingUser(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const displayName = user.full_name.trim() || 'Usuario';
+
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Buenos días, Juan</h1>
-          <p className="text-slate-500 dark:text-slate-400">Aquí tienes el resumen de hoy, 28 de Febrero, 2026.</p>
-        </div>
-        <div className="flex gap-3">
-          <button className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-            Ver Reportes
-          </button>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 dark:shadow-none">
-            Reservar Espacio
-          </button>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            {loadingUser ? 'Cargando...' : `Hola ${displayName}`}
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400">
+            {loadingUser ? 'Estamos recuperando tu información.' : 'Aquí tienes el resumen de hoy.'}
+          </p>
         </div>
       </div>
 
@@ -162,19 +215,6 @@ export default function Dashboard() {
             <button className="w-full mt-4 py-2 text-sm text-blue-600 font-medium hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
               Ver más sugerencias
             </button>
-          </div>
-
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
-             <div className="relative z-10">
-                <h3 className="font-bold text-lg mb-2">Check-in Pendiente</h3>
-                <p className="text-slate-300 text-sm mb-4">Tienes una reserva activa para hoy a las 09:00 AM.</p>
-                <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium w-full transition-colors">
-                  Hacer Check-in
-                </button>
-             </div>
-             <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-4 translate-y-4">
-               <MapPin size={100} />
-             </div>
           </div>
         </div>
       </div>

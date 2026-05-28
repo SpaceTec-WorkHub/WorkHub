@@ -1,15 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import { Outlet } from 'react-router';
-import { Bell } from 'lucide-react';
+import { Bell, X } from 'lucide-react';
 import { getCurrentUserId } from '../../services/auth';
-import { getNotificationsByUser, UiNotification } from '../../services/notifications';
+import {
+  deleteNotification,
+  getNotificationsByUser,
+  UiNotification,
+} from '../../services/notifications';
 
 export default function DashboardLayout() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<UiNotification[]>([]);
+  const notificationsPanelRef = useRef<HTMLDivElement | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const loadNotifications = async () => {
       const userId = getCurrentUserId();
 
@@ -26,6 +31,16 @@ export default function DashboardLayout() {
       }
     };
 
+    const closeNotificationsOnOutsideClick = (event: MouseEvent) => {
+      if (
+        showNotifications &&
+        notificationsPanelRef.current &&
+        !notificationsPanelRef.current.contains(event.target as Node)
+      ) {
+        setShowNotifications(false);
+      }
+    };
+
     const updateNotifications = () => {
       void loadNotifications();
     };
@@ -36,12 +51,27 @@ export default function DashboardLayout() {
     }, 5000);
 
     window.addEventListener('notificationsUpdated', updateNotifications);
+    document.addEventListener('mousedown', closeNotificationsOnOutsideClick);
 
     return () => {
       window.clearInterval(pollingId);
       window.removeEventListener('notificationsUpdated', updateNotifications);
+      document.removeEventListener('mousedown', closeNotificationsOnOutsideClick);
     };
-  }, []);
+  }, [showNotifications]);
+
+  const handleDeleteNotification = async (notificationId: number) => {
+    try {
+      await deleteNotification(notificationId);
+      setNotifications((currentNotifications) =>
+        currentNotifications.filter(
+          (notification) => notification.id !== notificationId,
+        ),
+      );
+    } catch {
+      setNotifications((currentNotifications) => currentNotifications);
+    }
+  };
 
   const allNotifications = notifications;
   const unreadCount = allNotifications.length;
@@ -59,10 +89,10 @@ export default function DashboardLayout() {
 
             <div className="flex items-center gap-4 relative">
               <span className="text-sm text-slate-500">
-                Última actualización: Hoy, 10:45 AM
+                Última actualización: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
 
-              <div className="relative">
+              <div className="relative" ref={notificationsPanelRef}>
                 <button
                   type="button"
                   onClick={() => setShowNotifications(!showNotifications)}
@@ -100,8 +130,19 @@ export default function DashboardLayout() {
                         allNotifications.map((notification) => (
                           <div
                             key={notification.id}
-                            className="px-4 py-3 border-b border-slate-100 bg-white hover:bg-slate-50"
+                            className="relative px-4 py-3 border-b border-slate-100 bg-white hover:bg-slate-50 pr-10"
                           >
+                            <button
+                              type="button"
+                              aria-label="Eliminar notificación"
+                              onClick={() => {
+                                void handleDeleteNotification(notification.id);
+                              }}
+                              className="absolute top-2 right-2 p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+
                             <p className="text-sm font-semibold text-slate-800">
                               {notification.title}
                             </p>
@@ -121,9 +162,6 @@ export default function DashboardLayout() {
                 )}
               </div>
 
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-all font-medium text-sm">
-                Reservar Ahora
-              </button>
             </div>
           </div>
         </header>
