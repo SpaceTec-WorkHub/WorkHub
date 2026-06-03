@@ -117,11 +117,73 @@ export type BlockRecord = {
 };
 
 export type SpecialEventResponse = {
+  event?: {
+    event_id: number;
+    title: string;
+  };
   title: string;
   zone_id: number;
   createdReservations: number;
   cancelledReservations: number;
   blockedSpaces: number;
+};
+
+export type EventStatus = 'planned' | 'ongoing' | 'completed' | 'cancelled';
+
+export type UserNeedRecord = {
+  user_need_id: number;
+  need_type: string;
+  reason: string;
+  start_date: string;
+  end_date: string;
+  status: 'active' | 'inactive' | 'expired';
+  user_id: number;
+  priority_level_id: number;
+  user?: {
+    user_id: number;
+    full_name: string | null;
+    email: string | null;
+  } | null;
+  priorityLevel?: {
+    priority_level_id: number;
+    name: string;
+    scale: string;
+  } | null;
+};
+
+export type PriorityLevelRecord = {
+  priority_level_id: number;
+  name: string;
+  scale: string;
+};
+
+export type UserNeedPayload = {
+  need_type: string;
+  start_date: string;
+  end_date: string;
+  status: UserNeedRecord['status'];
+  reason: string;
+  user_id: number;
+  priority_level_id: number;
+};
+
+export type EventRecord = {
+  event_id: number;
+  title: string;
+  description: string | null;
+  location: string | null;
+  start_time: string;
+  end_time: string;
+  expected_attendees: number | null;
+  status: EventStatus;
+  user_need_id: number;
+  created_by: number;
+  userNeed?: UserNeedRecord | null;
+  creator?: {
+    user_id: number;
+    full_name: string | null;
+    email: string | null;
+  } | null;
 };
 
 export type AdminUserRecord = {
@@ -174,6 +236,19 @@ export type SpecialEventPayload = {
   start_time: string;
   end_time: string;
   user_id: number;
+  user_need_id: number;
+};
+
+export type EventPayload = {
+  title: string;
+  description?: string;
+  location?: string;
+  start_time: string;
+  end_time: string;
+  expected_attendees?: number;
+  status: EventStatus;
+  user_need_id: number;
+  created_by: number;
 };
 
 export type GamificationRewardPayload = {
@@ -370,6 +445,64 @@ export async function updateBlock(blockId: number, payload: UpdateBlockPayload) 
 export async function deleteBlock(blockId: number) {
   return apiRequest<BlockRecord>(`/block/${blockId}`, {
     method: 'DELETE',
+  });
+}
+
+export async function getUserNeeds() {
+  return apiRequest<UserNeedRecord[]>('/user-need');
+}
+
+export async function getPriorityLevels() {
+  return apiRequest<PriorityLevelRecord[]>('/priority-level');
+}
+
+export async function createUserNeed(payload: UserNeedPayload) {
+  return apiRequest<UserNeedRecord>('/user-need', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateUserNeed(userNeedId: number, payload: Partial<UserNeedPayload>) {
+  return apiRequest<UserNeedRecord>(`/user-need/${userNeedId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteUserNeed(userNeedId: number) {
+  return apiRequest<UserNeedRecord>(`/user-need/${userNeedId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getEvents() {
+  return apiRequest<EventRecord[]>('/event');
+}
+
+export async function createEvent(payload: EventPayload) {
+  return apiRequest<EventRecord>('/event', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateEvent(eventId: number, payload: Partial<EventPayload>) {
+  return apiRequest<EventRecord>(`/event/${eventId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteEvent(eventId: number) {
+  return apiRequest<EventRecord>(`/event/${eventId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function cancelEvent(eventId: number) {
+  return apiRequest<{ event: EventRecord; cancelledReservations: number }>(`/event/${eventId}/cancel`, {
+    method: 'PATCH',
   });
 }
 

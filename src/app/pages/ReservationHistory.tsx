@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CheckCircle,
   Clock,
+  ChevronDown,
   PencilLine,
   Filter,
   History,
@@ -15,7 +16,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { getCurrentUserId } from '../../services/auth';
+import { getCurrentUserId, isAdminUser } from '../../services/auth';
 import { cancelReservation, deleteReservation, getUserReservations, ReservationRecord } from '../../services/reservation';
 
 const statusLabels: Record<ReservationRecord['status'], string> = {
@@ -51,6 +52,14 @@ const historyStatuses = [
 
 type HistoryStatusFilter = (typeof historyStatuses)[number];
 
+type ReservationHistoryGroup = {
+  key: string;
+  title: string;
+  subtitle: string;
+  reservations: ReservationRecord[];
+  sortKey: number;
+};
+
 const formatDateTime = (value?: string | null) => {
   if (!value) {
     return 'Pendiente';
@@ -58,6 +67,214 @@ const formatDateTime = (value?: string | null) => {
 
   return format(new Date(value), 'dd/MM/yyyy HH:mm');
 };
+
+const formatReservationRange = (reservation: ReservationRecord) =>
+  `${format(new Date(reservation.start_time), 'dd/MM/yyyy HH:mm')} - ${format(new Date(reservation.end_time), 'HH:mm')}`;
+
+function ReservationCard({
+  reservation,
+  onAction,
+  onViewAvailability,
+  deletingReservationId,
+}: {
+  reservation: ReservationRecord;
+  onAction: (reservation: ReservationRecord) => void;
+  onViewAvailability: (reservation: ReservationRecord) => void;
+  deletingReservationId: number | null;
+}) {
+  return (
+    <motion.article
+      key={reservation.reservation_id}
+      whileHover={{ y: -2 }}
+      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800"
+    >
+      <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={[
+              'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider',
+              statusStyles[reservation.status],
+            ].join(' ')}>
+              <CalendarClock size={12} />
+              {statusLabels[reservation.status]}
+            </span>
+            <span className="text-lg font-bold text-slate-900 dark:text-white">{reservation.space?.code ?? 'Sin espacio'}</span>
+            <span className="text-sm text-slate-500">{reservation.space?.space_type?.name ?? 'Espacio'}</span>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+              <p className="text-xs uppercase tracking-wider text-slate-500">Horario programado</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                {format(new Date(reservation.start_time), 'dd/MM/yyyy HH:mm')}
+              </p>
+              <p className="text-sm text-slate-500">{format(new Date(reservation.end_time), 'HH:mm')}</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+              <p className="text-xs uppercase tracking-wider text-slate-500">Check-in real</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formatDateTime(reservation.check_in_time)}</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+              <p className="text-xs uppercase tracking-wider text-slate-500">Check-out real</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formatDateTime(reservation.check_out_time)}</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+              <p className="text-xs uppercase tracking-wider text-slate-500">No-show</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formatDateTime(reservation.no_show_at)}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 text-sm text-slate-500">
+            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 dark:bg-slate-700">
+              <MapPin size={14} />
+              {reservation.space?.zone?.name ?? 'Sin zona'}
+            </span>
+            {reservation.event ? (
+              <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200">
+                <CalendarClock size={14} />
+                {reservation.event.title}
+              </span>
+            ) : null}
+            {reservation.reassigned_space_id ? (
+              <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-blue-700">
+                <RotateCcw size={14} />
+                Reasignado a espacio #{reservation.reassigned_space_id}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="max-w-lg space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <Clock size={16} />
+            Incidencias y notas
+          </div>
+          {reservation.incident_notes ? (
+            <p className="text-sm text-slate-600 dark:text-slate-300">{reservation.incident_notes}</p>
+          ) : (
+            <p className="text-sm text-slate-500">Sin notas registradas.</p>
+          )}
+
+          {reservation.incidents && reservation.incidents.length > 0 ? (
+            <div className="space-y-2 pt-2">
+              {reservation.incidents.map((incident) => (
+                <div key={incident.incident_id} className="rounded-xl border border-fuchsia-100 bg-fuchsia-50 p-3 text-sm text-fuchsia-900 dark:border-fuchsia-900/40 dark:bg-fuchsia-950/20 dark:text-fuchsia-100">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-2 font-semibold uppercase tracking-wider text-xs">
+                      <TriangleAlert size={12} />
+                      {incident.type}
+                    </span>
+                    <span className="text-xs opacity-80">{format(new Date(incident.created_at), 'dd/MM/yyyy HH:mm')}</span>
+                  </div>
+                  <p className="mt-2 text-sm">{incident.description}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3 border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+        <button
+          type="button"
+          disabled={deletingReservationId === reservation.reservation_id}
+          onClick={() => onAction(reservation)}
+          className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Trash2 size={16} />
+          {deletingReservationId === reservation.reservation_id
+            ? 'Procesando...'
+            : reservation.status === 'cancelled'
+              ? 'Eliminar'
+              : 'Cancelar'}
+        </button>
+
+        <button
+          type="button"
+          disabled={reservation.status !== 'cancelled'}
+          onClick={() => onViewAvailability(reservation)}
+          className={[
+            'inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors',
+            reservation.status === 'cancelled'
+              ? 'rounded-xl bg-blue-600 text-white hover:bg-blue-500'
+              : 'rounded-xl border border-slate-200 bg-white text-slate-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800',
+          ].join(' ')}
+        >
+          <PencilLine size={16} />
+          {reservation.status === 'cancelled' ? 'Ver disponibilidad' : 'Editar'}
+        </button>
+      </div>
+    </motion.article>
+  );
+}
+
+function AdminEventGroupCard({
+  group,
+  isExpanded,
+  onToggle,
+  onAction,
+  onViewAvailability,
+  deletingReservationId,
+}: {
+  group: ReservationHistoryGroup;
+  isExpanded: boolean;
+  onToggle: (groupKey: string) => void;
+  onAction: (reservation: ReservationRecord) => void;
+  onViewAvailability: (reservation: ReservationRecord) => void;
+  deletingReservationId: number | null;
+}) {
+  return (
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <button
+        type="button"
+        onClick={() => onToggle(group.key)}
+        aria-expanded={isExpanded}
+        className="flex w-full items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4 text-left transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+      >
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Agrupación de evento</p>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">{group.title}</h3>
+            <p className="text-sm text-slate-500">{group.subtitle}</p>
+          </div>
+          <div className="mt-1 text-xs font-medium text-slate-400">
+            {group.key === 'sin-evento'
+              ? 'Reservaciones individuales'
+              : `Primera reservación: ${formatReservationRange(group.reservations[0])}`}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+            {group.reservations.length} reservación{group.reservations.length === 1 ? '' : 'es'}
+          </div>
+          <div className={[
+            'flex h-9 w-9 items-center justify-center rounded-full border transition-transform duration-200',
+            isExpanded
+              ? 'rotate-180 border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+              : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200',
+          ].join(' ')}>
+            <ChevronDown size={16} />
+          </div>
+        </div>
+      </button>
+
+      {isExpanded ? (
+        <div className="grid gap-4 p-5">
+          {group.reservations.map((reservation) => (
+            <ReservationCard
+              key={reservation.reservation_id}
+              reservation={reservation}
+              onAction={onAction}
+              onViewAvailability={onViewAvailability}
+              deletingReservationId={deletingReservationId}
+            />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
 
 export default function ReservationHistory() {
   const navigate = useNavigate();
@@ -67,6 +284,8 @@ export default function ReservationHistory() {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>('all');
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const isAdmin = useMemo(() => isAdminUser(), []);
 
   const currentUserId = useMemo(() => getCurrentUserId(), []);
 
@@ -146,6 +365,63 @@ export default function ReservationHistory() {
       return matchesStatus && matchesSearch;
     });
   }, [reservations, searchTerm, statusFilter]);
+
+  const groupedReservations = useMemo(() => {
+    if (!isAdmin) {
+      return [];
+    }
+
+    const groupedByEvent = new Map<string, ReservationHistoryGroup>();
+    const standaloneReservations: ReservationRecord[] = [];
+
+    for (const reservation of filteredReservations) {
+      if (reservation.event_id && reservation.event) {
+        const eventKey = String(reservation.event_id);
+        const existingGroup = groupedByEvent.get(eventKey);
+        const groupTitle = reservation.event.title || `Evento #${reservation.event_id}`;
+        const groupSubtitle = reservation.event.start_time && reservation.event.end_time
+          ? `${format(new Date(reservation.event.start_time), 'dd/MM/yyyy HH:mm')} - ${format(new Date(reservation.event.end_time), 'HH:mm')}`
+          : `Evento #${reservation.event_id}`;
+
+        if (existingGroup) {
+          existingGroup.reservations.push(reservation);
+          existingGroup.sortKey = Math.min(existingGroup.sortKey, new Date(reservation.start_time).getTime());
+          continue;
+        }
+
+        groupedByEvent.set(eventKey, {
+          key: eventKey,
+          title: groupTitle,
+          subtitle: groupSubtitle,
+          reservations: [reservation],
+          sortKey: new Date(reservation.start_time).getTime(),
+        });
+        continue;
+      }
+
+      standaloneReservations.push(reservation);
+    }
+
+    const eventGroups = Array.from(groupedByEvent.values()).sort((left, right) => left.sortKey - right.sortKey);
+    const standaloneGroup: ReservationHistoryGroup | null = standaloneReservations.length > 0
+      ? {
+          key: 'sin-evento',
+          title: 'Reservaciones sin evento',
+          subtitle: 'Reservaciones creadas de forma individual',
+          reservations: standaloneReservations.sort((left, right) => new Date(right.start_time).getTime() - new Date(left.start_time).getTime()),
+          sortKey: standaloneReservations.length > 0 ? Math.min(...standaloneReservations.map((reservation) => new Date(reservation.start_time).getTime())) : Number.MAX_SAFE_INTEGER,
+        }
+      : null;
+
+    return standaloneGroup ? [...eventGroups, standaloneGroup] : eventGroups;
+  }, [filteredReservations, isAdmin]);
+
+  const handleToggleGroup = (groupKey: string) => {
+    setExpandedGroups((currentExpandedGroups) => ({
+      ...currentExpandedGroups,
+      [groupKey]: currentExpandedGroups[groupKey] ?? true ? false : true,
+    }));
+  };
 
   const summary = useMemo(() => {
     return reservations.reduce(
@@ -235,126 +511,33 @@ export default function ReservationHistory() {
           Cargando historial...
         </div>
       ) : filteredReservations.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4">
-          {filteredReservations.map((reservation) => (
-            <motion.article
-              key={reservation.reservation_id}
-              whileHover={{ y: -2 }}
-              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800"
-            >
-              <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={[
-                      'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider',
-                      statusStyles[reservation.status],
-                    ].join(' ')}>
-                      <CalendarClock size={12} />
-                      {statusLabels[reservation.status]}
-                    </span>
-                    <span className="text-lg font-bold text-slate-900 dark:text-white">{reservation.space?.code ?? 'Sin espacio'}</span>
-                    <span className="text-sm text-slate-500">{reservation.space?.space_type?.name ?? 'Espacio'}</span>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
-                      <p className="text-xs uppercase tracking-wider text-slate-500">Horario programado</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                        {format(new Date(reservation.start_time), 'dd/MM/yyyy HH:mm')}
-                      </p>
-                      <p className="text-sm text-slate-500">{format(new Date(reservation.end_time), 'HH:mm')}</p>
-                    </div>
-                    <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
-                      <p className="text-xs uppercase tracking-wider text-slate-500">Check-in real</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formatDateTime(reservation.check_in_time)}</p>
-                    </div>
-                    <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
-                      <p className="text-xs uppercase tracking-wider text-slate-500">Check-out real</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formatDateTime(reservation.check_out_time)}</p>
-                    </div>
-                    <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
-                      <p className="text-xs uppercase tracking-wider text-slate-500">No-show</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{formatDateTime(reservation.no_show_at)}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 text-sm text-slate-500">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 dark:bg-slate-700">
-                      <MapPin size={14} />
-                      {reservation.space?.zone?.name ?? 'Sin zona'}
-                    </span>
-                    {reservation.reassigned_space_id ? (
-                      <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-blue-700">
-                        <RotateCcw size={14} />
-                        Reasignado a espacio #{reservation.reassigned_space_id}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="max-w-lg space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-                    <Clock size={16} />
-                    Incidencias y notas
-                  </div>
-                  {reservation.incident_notes ? (
-                    <p className="text-sm text-slate-600 dark:text-slate-300">{reservation.incident_notes}</p>
-                  ) : (
-                    <p className="text-sm text-slate-500">Sin notas registradas.</p>
-                  )}
-
-                  {reservation.incidents && reservation.incidents.length > 0 ? (
-                    <div className="space-y-2 pt-2">
-                      {reservation.incidents.map((incident) => (
-                        <div key={incident.incident_id} className="rounded-xl border border-fuchsia-100 bg-fuchsia-50 p-3 text-sm text-fuchsia-900 dark:border-fuchsia-900/40 dark:bg-fuchsia-950/20 dark:text-fuchsia-100">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="inline-flex items-center gap-2 font-semibold uppercase tracking-wider text-xs">
-                              <TriangleAlert size={12} />
-                              {incident.type}
-                            </span>
-                            <span className="text-xs opacity-80">{format(new Date(incident.created_at), 'dd/MM/yyyy HH:mm')}</span>
-                          </div>
-                          <p className="mt-2 text-sm">{incident.description}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3 border-t border-slate-200 px-5 py-4 dark:border-slate-700">
-                <button
-                  type="button"
-                  disabled={deletingReservationId === reservation.reservation_id}
-                  onClick={() => handleReservationAction(reservation)}
-                  className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Trash2 size={16} />
-                  {deletingReservationId === reservation.reservation_id
-                    ? 'Procesando...'
-                    : reservation.status === 'cancelled'
-                      ? 'Eliminar'
-                      : 'Cancelar'}
-                </button>
-
-                <button
-                  type="button"
-                  disabled={reservation.status !== 'cancelled'}
-                  onClick={() => handleViewAvailability(reservation)}
-                  className={[
-                    'inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors',
-                    reservation.status === 'cancelled'
-                      ? 'rounded-xl bg-blue-600 text-white hover:bg-blue-500'
-                      : 'rounded-xl border border-slate-200 bg-white text-slate-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800',
-                  ].join(' ')}
-                >
-                  <PencilLine size={16} />
-                  {reservation.status === 'cancelled' ? 'Ver disponibilidad' : 'Editar'}
-                </button>
-              </div>
-            </motion.article>
-          ))}
-        </div>
+        isAdmin ? (
+          <div className="space-y-4">
+            {groupedReservations.map((group) => (
+              <AdminEventGroupCard
+                key={group.key}
+                group={group}
+                isExpanded={expandedGroups[group.key] ?? true}
+                onToggle={handleToggleGroup}
+                onAction={handleReservationAction}
+                onViewAvailability={handleViewAvailability}
+                deletingReservationId={deletingReservationId}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {filteredReservations.map((reservation) => (
+              <ReservationCard
+                key={reservation.reservation_id}
+                reservation={reservation}
+                onAction={handleReservationAction}
+                onViewAvailability={handleViewAvailability}
+                deletingReservationId={deletingReservationId}
+              />
+            ))}
+          </div>
+        )
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800">
           <div className="mx-auto mb-3 w-fit rounded-full bg-slate-100 p-3 text-slate-500 dark:bg-slate-700 dark:text-slate-300">

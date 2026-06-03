@@ -29,6 +29,8 @@ import {
   createSpaceBlocks,
   createSpecialEventReservations,
   createUser,
+  cancelEvent,
+  createUserNeed,
   deleteBuilding,
   deleteFloor,
   deleteGamificationReward,
@@ -36,15 +38,19 @@ import {
   deleteSpace,
   deleteZone,
   deleteUser,
+  deleteUserNeed,
   getAdminBuildings,
   getAdminFloors,
+  getEvents,
   getAdminSpaces,
   getAdminZones,
   getBlocks,
   getGamificationRewards,
   getRoles,
+  getPriorityLevels,
   getSites,
   getSpaceTypes,
+  getUserNeeds,
   getUsers,
   getZones,
   AdminBuildingRecord,
@@ -53,6 +59,10 @@ import {
   AdminSpaceRecord,
   AdminSpaceTypeRecord,
   AdminZoneRecord,
+  EventPayload,
+  EventRecord,
+  EventStatus,
+  PriorityLevelRecord,
   ZoneOption,
   RoleRecord,
   updateBuilding,
@@ -60,12 +70,15 @@ import {
   updateSpace,
   updateZone,
   updateBlock,
+  updateEvent,
+  updateUserNeed,
   BlockRecord,
   updateUser,
   AdminUserRecord,
   updateGamificationReward,
   GamificationRewardPayload,
   GamificationRewardsResponse,
+  UserNeedRecord,
 } from '../../services/admin';
 import { ApiSpace, getSpace } from '../../services/space';
 
@@ -74,6 +87,13 @@ const toDateTimeLocalValue = (value: string | Date) => {
   const offset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 };
+
+const eventStatusOptions: Array<{ value: EventStatus; label: string }> = [
+  { value: 'planned', label: 'Planeado' },
+  { value: 'ongoing', label: 'En curso' },
+  { value: 'completed', label: 'Completado' },
+  { value: 'cancelled', label: 'Cancelado' },
+];
 
 export default function Admin() {
   const [zones, setZones] = useState<ZoneOption[]>([]);
@@ -138,11 +158,43 @@ export default function Admin() {
 
   const [eventTitle, setEventTitle] = useState('Town hall / evento especial');
   const [eventZoneId, setEventZoneId] = useState<number | null>(null);
+  const [eventUserNeedId, setEventUserNeedId] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventStartTime, setEventStartTime] = useState('');
   const [eventEndTime, setEventEndTime] = useState('');
   const [eventLoading, setEventLoading] = useState(false);
   const [eventMessage, setEventMessage] = useState('');
+
+  const [events, setEvents] = useState<EventRecord[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState('');
+  const [eventManagerOpen, setEventManagerOpen] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<number | null>(null);
+  const [managedEventTitle, setManagedEventTitle] = useState('');
+  const [managedEventDescription, setManagedEventDescription] = useState('');
+  const [managedEventLocation, setManagedEventLocation] = useState('');
+  const [managedEventUserNeedId, setManagedEventUserNeedId] = useState('');
+  const [managedEventStartTime, setManagedEventStartTime] = useState('');
+  const [managedEventEndTime, setManagedEventEndTime] = useState('');
+  const [managedEventExpectedAttendees, setManagedEventExpectedAttendees] = useState('');
+  const [managedEventStatus, setManagedEventStatus] = useState<EventStatus>('planned');
+  const [eventManagerLoading, setEventManagerLoading] = useState(false);
+  const [eventManagerMessage, setEventManagerMessage] = useState('');
+  const [userNeeds, setUserNeeds] = useState<UserNeedRecord[]>([]);
+  const [userNeedsLoading, setUserNeedsLoading] = useState(true);
+  const [userNeedsError, setUserNeedsError] = useState('');
+  const [priorityLevels, setPriorityLevels] = useState<PriorityLevelRecord[]>([]);
+  const [userNeedManagerOpen, setUserNeedManagerOpen] = useState(false);
+  const [editingUserNeedId, setEditingUserNeedId] = useState<number | null>(null);
+  const [managedUserNeedType, setManagedUserNeedType] = useState('');
+  const [managedUserNeedReason, setManagedUserNeedReason] = useState('');
+  const [managedUserNeedStartDate, setManagedUserNeedStartDate] = useState('');
+  const [managedUserNeedEndDate, setManagedUserNeedEndDate] = useState('');
+  const [managedUserNeedStatus, setManagedUserNeedStatus] = useState<'active' | 'inactive' | 'expired'>('active');
+  const [managedUserNeedUserId, setManagedUserNeedUserId] = useState('');
+  const [managedUserNeedPriorityLevelId, setManagedUserNeedPriorityLevelId] = useState('');
+  const [userNeedManagerLoading, setUserNeedManagerLoading] = useState(false);
+  const [userNeedManagerMessage, setUserNeedManagerMessage] = useState('');
 
   const [rewards, setRewards] = useState<GamificationRewardsResponse['rewards']>([]);
   const [rewardsPeriod, setRewardsPeriod] = useState('');
@@ -484,6 +536,36 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
+    setEventsLoading(true);
+    getEvents()
+      .then((data) => {
+        setEvents(data);
+        setEventsError('');
+      })
+      .catch((error) => {
+        setEvents([]);
+        setEventsError(error instanceof Error ? error.message : 'No fue posible cargar los eventos.');
+      })
+      .finally(() => setEventsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    setUserNeedsLoading(true);
+    getUserNeeds()
+      .then((data) => {
+        setUserNeeds(data);
+        setUserNeedsError('');
+        setEventUserNeedId((current) => current || String(data[0]?.user_need_id ?? ''));
+        setManagedEventUserNeedId((current) => current || String(data[0]?.user_need_id ?? ''));
+      })
+      .catch((error) => {
+        setUserNeeds([]);
+        setUserNeedsError(error instanceof Error ? error.message : 'No fue posible cargar los user needs.');
+      })
+      .finally(() => setUserNeedsLoading(false));
+  }, []);
+
+  useEffect(() => {
     setRewardsLoading(true);
 
     getGamificationRewards()
@@ -524,6 +606,73 @@ export default function Admin() {
   const refreshBlocks = async () => {
     const data = await getBlocks();
     setBlocks(data);
+  };
+
+  const refreshEvents = async () => {
+    const data = await getEvents();
+    setEvents(data);
+  };
+
+  const refreshPriorityLevels = async () => {
+    const data = await getPriorityLevels();
+    setPriorityLevels(data);
+    return data;
+  };
+
+  const resetEventForm = () => {
+    setEditingEventId(null);
+    setManagedEventTitle('');
+    setManagedEventDescription('');
+    setManagedEventLocation('');
+    setManagedEventUserNeedId(String(userNeeds[0]?.user_need_id ?? ''));
+    setManagedEventStartTime('');
+    setManagedEventEndTime('');
+    setManagedEventExpectedAttendees('');
+    setManagedEventStatus('planned');
+    setEventManagerMessage('');
+  };
+
+  const resetUserNeedForm = () => {
+    setEditingUserNeedId(null);
+    setManagedUserNeedType('');
+    setManagedUserNeedReason('');
+    setManagedUserNeedStartDate('');
+    setManagedUserNeedEndDate('');
+    setManagedUserNeedStatus('active');
+    setManagedUserNeedUserId(String(usuarios[0]?.user_id ?? ''));
+    setManagedUserNeedPriorityLevelId(String(priorityLevels[0]?.priority_level_id ?? ''));
+    setUserNeedManagerMessage('');
+  };
+
+  const openEventEditor = (eventRecord: EventRecord) => {
+    setEditingEventId(eventRecord.event_id);
+    setManagedEventTitle(eventRecord.title);
+    setManagedEventDescription(eventRecord.description ?? '');
+    setManagedEventLocation(eventRecord.location ?? '');
+    setManagedEventUserNeedId(String(eventRecord.user_need_id));
+    setManagedEventStartTime(toDateTimeLocalValue(eventRecord.start_time));
+    setManagedEventEndTime(toDateTimeLocalValue(eventRecord.end_time));
+    setManagedEventExpectedAttendees(
+      eventRecord.expected_attendees !== null && eventRecord.expected_attendees !== undefined
+        ? String(eventRecord.expected_attendees)
+        : '',
+    );
+    setManagedEventStatus(eventRecord.status);
+    setEventManagerMessage('Editando evento seleccionado.');
+    setEventManagerOpen(true);
+  };
+
+  const openUserNeedEditor = (userNeed: UserNeedRecord) => {
+    setEditingUserNeedId(userNeed.user_need_id);
+    setManagedUserNeedType(userNeed.need_type);
+    setManagedUserNeedReason(userNeed.reason);
+    setManagedUserNeedStartDate(toDateTimeLocalValue(userNeed.start_date));
+    setManagedUserNeedEndDate(toDateTimeLocalValue(userNeed.end_date));
+    setManagedUserNeedStatus(userNeed.status);
+    setManagedUserNeedUserId(String(userNeed.user?.user_id ?? ''));
+    setManagedUserNeedPriorityLevelId(String(userNeed.priorityLevel?.priority_level_id ?? ''));
+    setUserNeedManagerMessage('Editando necesidad seleccionada.');
+    setUserNeedManagerOpen(true);
   };
 
   const handleBuildingSave = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -830,8 +979,8 @@ export default function Admin() {
 
   const handleEventSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!eventZoneId || !eventDate || !eventStartTime || !eventEndTime) {
-      setEventMessage('Completa zona, fecha y horario del evento.');
+    if (!eventZoneId || !eventUserNeedId || !eventDate || !eventStartTime || !eventEndTime) {
+      setEventMessage('Completa zona, user need, fecha y horario del evento.');
       return;
     }
 
@@ -849,13 +998,15 @@ export default function Admin() {
         title: eventTitle,
         zone_id: eventZoneId,
         user_id: userId,
+        user_need_id: Number(eventUserNeedId),
         start_time: `${eventDate}T${eventStartTime}:00`,
         end_time: `${eventDate}T${eventEndTime}:00`,
       });
 
       setEventMessage(
-        `Evento creado. ${response.createdReservations} reservas generadas y ${response.cancelledReservations} reservas previas canceladas.`,
+        `Evento "${response.event?.title ?? eventTitle}" registrado. ${response.createdReservations ?? 0} reservas generadas y ${response.cancelledReservations ?? 0} reservas previas canceladas.`,
       );
+      await refreshEvents();
       setEventTitle('Town hall / evento especial');
       setEventDate('');
       setEventStartTime('');
@@ -864,6 +1015,183 @@ export default function Admin() {
       setEventMessage(error instanceof Error ? error.message : 'No fue posible crear el evento especial.');
     } finally {
       setEventLoading(false);
+    }
+  };
+
+  const openEventManager = () => {
+    setEventManagerOpen(true);
+
+    if (!userNeeds.length && !userNeedsLoading) {
+      void getUserNeeds()
+        .then((data) => {
+          setUserNeeds(data);
+          setManagedEventUserNeedId((current) => current || String(data[0]?.user_need_id ?? ''));
+          setUserNeedsError('');
+        })
+        .catch((error) => {
+          setUserNeedsError(error instanceof Error ? error.message : 'No fue posible cargar los user needs.');
+        });
+    }
+
+    if (!events.length && !eventsLoading) {
+      void refreshEvents().catch(() => undefined);
+    }
+  };
+
+  const openUserNeedManager = () => {
+    setUserNeedManagerOpen(true);
+
+    if (!userNeeds.length && !userNeedsLoading) {
+      void getUserNeeds()
+        .then((data) => {
+          setUserNeeds(data);
+          setUserNeedsError('');
+        })
+        .catch((error) => {
+          setUserNeedsError(error instanceof Error ? error.message : 'No fue posible cargar los user needs.');
+        });
+    }
+
+    if (!priorityLevels.length) {
+      void refreshPriorityLevels().catch(() => undefined);
+    }
+
+    if (!usuarios.length && !loadingUsers) {
+      void getUsers()
+        .then((data) => setUsuarios(Array.isArray(data) ? data : []))
+        .catch(() => setUsuarios([]));
+    }
+
+    if (!editingUserNeedId) {
+      setManagedUserNeedUserId((current) => current || String(usuarios[0]?.user_id ?? ''));
+      setManagedUserNeedPriorityLevelId((current) => current || String(priorityLevels[0]?.priority_level_id ?? ''));
+    }
+  };
+
+  const handleEventManagerSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!editingEventId) {
+      setEventManagerMessage('Selecciona un evento para editarlo.');
+      return;
+    }
+
+    if (!managedEventTitle.trim() || !managedEventUserNeedId || !managedEventStartTime || !managedEventEndTime) {
+      setEventManagerMessage('Completa título, user need, inicio y fin.');
+      return;
+    }
+
+    setEventManagerLoading(true);
+    setEventManagerMessage('');
+
+    const payload = {
+      title: managedEventTitle.trim(),
+      description: managedEventDescription.trim() || undefined,
+      location: managedEventLocation.trim() || undefined,
+      start_time: new Date(managedEventStartTime).toISOString(),
+      end_time: new Date(managedEventEndTime).toISOString(),
+      expected_attendees: managedEventExpectedAttendees.trim() ? Number(managedEventExpectedAttendees) : undefined,
+      status: managedEventStatus,
+      user_need_id: Number(managedEventUserNeedId),
+    };
+
+    try {
+      await updateEvent(editingEventId, payload);
+      setEventManagerMessage('Evento actualizado correctamente.');
+
+      await refreshEvents();
+      resetEventForm();
+    } catch (error) {
+      setEventManagerMessage(error instanceof Error ? error.message : 'No fue posible guardar el evento.');
+    } finally {
+      setEventManagerLoading(false);
+    }
+  };
+
+  const handleEventCancel = async (eventId: number) => {
+    setEventManagerLoading(true);
+    setEventManagerMessage('');
+
+    try {
+      const response = await cancelEvent(eventId);
+      await refreshEvents();
+      if (editingEventId === eventId) {
+        resetEventForm();
+      }
+      setEventManagerMessage(
+        `Evento cancelado correctamente. ${response.cancelledReservations ?? 0} reservaciones asociadas fueron canceladas.`,
+      );
+    } catch (error) {
+      setEventManagerMessage(error instanceof Error ? error.message : 'No fue posible cancelar el evento.');
+    } finally {
+      setEventManagerLoading(false);
+    }
+  };
+
+  const handleUserNeedSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!managedUserNeedType.trim() || !managedUserNeedReason.trim() || !managedUserNeedStartDate || !managedUserNeedEndDate || !managedUserNeedUserId || !managedUserNeedPriorityLevelId) {
+      setUserNeedManagerMessage('Completa tipo, razón, fechas, usuario y prioridad.');
+      return;
+    }
+
+    setUserNeedManagerLoading(true);
+    setUserNeedManagerMessage('');
+
+    const payload = {
+      need_type: managedUserNeedType.trim(),
+      reason: managedUserNeedReason.trim(),
+      start_date: new Date(managedUserNeedStartDate).toISOString(),
+      end_date: new Date(managedUserNeedEndDate).toISOString(),
+      status: managedUserNeedStatus,
+      user_id: Number(managedUserNeedUserId),
+      priority_level_id: Number(managedUserNeedPriorityLevelId),
+    };
+
+    try {
+      if (editingUserNeedId) {
+        await updateUserNeed(editingUserNeedId, payload);
+        setUserNeedManagerMessage('Necesidad actualizada correctamente.');
+      } else {
+        await createUserNeed(payload);
+        setUserNeedManagerMessage('Necesidad creada correctamente.');
+      }
+
+      const refreshedNeeds = await getUserNeeds();
+      setUserNeeds(refreshedNeeds);
+      resetUserNeedForm();
+    } catch (error) {
+      setUserNeedManagerMessage(error instanceof Error ? error.message : 'No fue posible guardar la necesidad.');
+    } finally {
+      setUserNeedManagerLoading(false);
+    }
+  };
+
+  const handleUserNeedDelete = async (userNeedId: number) => {
+    const confirmed = window.confirm('¿Deseas eliminar esta necesidad?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    setUserNeedManagerLoading(true);
+    setUserNeedManagerMessage('');
+
+    try {
+      await deleteUserNeed(userNeedId);
+      const refreshedNeeds = await getUserNeeds();
+      setUserNeeds(refreshedNeeds);
+
+      if (editingUserNeedId === userNeedId) {
+        resetUserNeedForm();
+      }
+
+      setUserNeedManagerMessage('Necesidad eliminada correctamente.');
+    } catch (error) {
+      setUserNeedManagerMessage(error instanceof Error ? error.message : 'No fue posible eliminar la necesidad.');
+    } finally {
+      setUserNeedManagerLoading(false);
     }
   };
 
@@ -1088,6 +1416,23 @@ export default function Admin() {
               </select>
             </div>
             <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">User need</label>
+              <select
+                value={eventUserNeedId}
+                onChange={(event) => setEventUserNeedId(event.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                disabled={userNeedsLoading}
+              >
+                <option value="">Selecciona un user need</option>
+                {userNeeds.map((userNeed) => (
+                  <option key={userNeed.user_need_id} value={userNeed.user_need_id}>
+                    #{userNeed.user_need_id} · {userNeed.need_type} · {userNeed.reason}
+                  </option>
+                ))}
+              </select>
+              {userNeedsError ? <p className="mt-1 text-xs text-red-600">{userNeedsError}</p> : null}
+            </div>
+            <div>
               <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Fecha</label>
               <input
                 type="date"
@@ -1123,6 +1468,22 @@ export default function Admin() {
             >
               <Calendar size={16} />
               {eventLoading ? 'Creando evento...' : 'Crear evento especial'}
+            </button>
+            <button
+              type="button"
+              onClick={() => openEventManager()}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+            >
+              <Calendar size={16} />
+              Gestionar eventos
+            </button>
+            <button
+              type="button"
+              onClick={() => openUserNeedManager()}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+            >
+              <Users size={16} />
+              Gestionar Necesidades
             </button>
           </form>
           {eventMessage ? <p className="mt-4 text-sm text-slate-600">{eventMessage}</p> : null}
@@ -1537,6 +1898,456 @@ export default function Admin() {
                 </div>
 
                 <p className="mt-4 text-xs text-slate-400">Si eliminas un padre con hijos asociados, el backend puede rechazar la operación hasta limpiar primero sus dependencias.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {eventManagerOpen ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm sm:items-center">
+          <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Administrar eventos</h3>
+                <p className="mt-1 text-sm text-slate-500">Crea, edita y elimina eventos del módulo principal.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEventManagerOpen(false);
+                  resetEventForm();
+                }}
+                className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid flex-1 min-h-0 gap-6 overflow-hidden p-6 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="max-h-[calc(90vh-8rem)] overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 p-4 pr-2 dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-lg font-semibold text-slate-900 dark:text-white">Eventos actuales</h4>
+                    <p className="text-sm text-slate-500">{events.length} evento(s) registrados.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetEventForm}
+                    className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-white dark:border-slate-700 dark:hover:bg-slate-900"
+                  >
+                    Nuevo
+                  </button>
+                </div>
+
+                {eventsLoading ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">
+                    Cargando eventos...
+                  </div>
+                ) : eventsError ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                    {eventsError}
+                  </div>
+                ) : (
+                  <div className="max-h-[calc(90vh-15rem)] space-y-3 overflow-y-auto pr-1">
+                    {events.map((eventRecord) => {
+                      const userNeedLabel = eventRecord.userNeed
+                        ? `${eventRecord.userNeed.need_type} · ${eventRecord.userNeed.reason}`
+                        : `User need #${eventRecord.user_need_id}`;
+                      const creatorLabel = eventRecord.creator?.full_name ?? eventRecord.creator?.email ?? `#${eventRecord.created_by}`;
+
+                      return (
+                        <div key={eventRecord.event_id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-700">{eventStatusOptions.find((option) => option.value === eventRecord.status)?.label ?? eventRecord.status}</span>
+                                <span>{userNeedLabel}</span>
+                              </div>
+                              <h5 className="mt-2 text-base font-bold text-slate-900 dark:text-white">{eventRecord.title}</h5>
+                              <p className="mt-1 text-sm text-slate-500">
+                                {eventRecord.location ? `${eventRecord.location} · ` : ''}
+                                {creatorLabel}
+                              </p>
+                              {eventRecord.description ? <p className="mt-2 text-sm text-slate-500">{eventRecord.description}</p> : null}
+                              <p className="mt-2 text-xs text-slate-400">
+                                {format(new Date(eventRecord.start_time), 'PPp')}
+                                {' - '}
+                                {format(new Date(eventRecord.end_time), 'PPp')}
+                                {eventRecord.expected_attendees ? ` · ${eventRecord.expected_attendees} asistentes esperados` : ''}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEventEditor(eventRecord)}
+                                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                              >
+                                <PencilLine size={16} />
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEventCancel(eventRecord.event_id)}
+                                disabled={eventManagerLoading}
+                                className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <Trash2 size={16} />
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {events.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">
+                        Todavía no hay eventos registrados.
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+
+              <div className="max-h-[calc(90vh-8rem)] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 pr-2 shadow-sm dark:border-slate-800 dark:bg-slate-950/60">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    {editingEventId ? 'Editar evento' : 'Selecciona un evento'}
+                  </h4>
+                  <span className="text-xs text-slate-400">{eventManagerLoading ? 'Guardando...' : ''}</span>
+                </div>
+
+                {eventManagerMessage ? (
+                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                    {eventManagerMessage}
+                  </div>
+                ) : null}
+
+                <div className="mt-5 space-y-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Título</label>
+                    <input
+                      value={managedEventTitle}
+                      onChange={(event) => setManagedEventTitle(event.target.value)}
+                      disabled={!editingEventId}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Descripción</label>
+                    <textarea
+                      value={managedEventDescription}
+                      onChange={(event) => setManagedEventDescription(event.target.value)}
+                      rows={3}
+                      disabled={!editingEventId}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Ubicación</label>
+                    <input
+                      value={managedEventLocation}
+                      onChange={(event) => setManagedEventLocation(event.target.value)}
+                      disabled={!editingEventId}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">User need</label>
+                    <select
+                      value={managedEventUserNeedId}
+                      onChange={(event) => setManagedEventUserNeedId(event.target.value)}
+                      disabled={!editingEventId || userNeedsLoading}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    >
+                      <option value="">Selecciona un user need</option>
+                      {userNeeds.map((userNeed) => (
+                        <option key={userNeed.user_need_id} value={userNeed.user_need_id}>
+                          #{userNeed.user_need_id} · {userNeed.need_type} · {userNeed.reason}
+                        </option>
+                      ))}
+                    </select>
+                    {userNeedsError ? <p className="mt-1 text-xs text-red-600">{userNeedsError}</p> : null}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Estado</label>
+                    <select
+                      value={managedEventStatus}
+                      onChange={(event) => setManagedEventStatus(event.target.value as EventStatus)}
+                      disabled={!editingEventId}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    >
+                      {eventStatusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Inicio</label>
+                      <input
+                        type="datetime-local"
+                        value={managedEventStartTime}
+                        onChange={(event) => setManagedEventStartTime(event.target.value)}
+                        disabled={!editingEventId}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Fin</label>
+                      <input
+                        type="datetime-local"
+                        value={managedEventEndTime}
+                        onChange={(event) => setManagedEventEndTime(event.target.value)}
+                        disabled={!editingEventId}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Asistentes esperados</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={managedEventExpectedAttendees}
+                      onChange={(event) => setManagedEventExpectedAttendees(event.target.value)}
+                      disabled={!editingEventId}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={resetEventForm}
+                      className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+                    >
+                      Cancelar edición
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={eventManagerLoading || userNeedsLoading || !editingEventId}
+                      className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                    >
+                      Guardar cambios
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {userNeedManagerOpen ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm sm:items-center">
+          <div className="flex h-[90vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Gestionar Necesidades</h3>
+                <p className="mt-1 text-sm text-slate-500">Crea, edita y elimina user needs desde este panel.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setUserNeedManagerOpen(false);
+                  resetUserNeedForm();
+                }}
+                className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid flex-1 min-h-0 gap-6 overflow-hidden p-6 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="max-h-[calc(90vh-8rem)] overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 p-4 pr-2 dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-lg font-semibold text-slate-900 dark:text-white">User needs actuales</h4>
+                    <p className="text-sm text-slate-500">{userNeeds.length} necesidad(es) registradas.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetUserNeedForm}
+                    className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-white dark:border-slate-700 dark:hover:bg-slate-900"
+                  >
+                    Nuevo
+                  </button>
+                </div>
+
+                {userNeedsLoading ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">
+                    Cargando user needs...
+                  </div>
+                ) : userNeedsError ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                    {userNeedsError}
+                  </div>
+                ) : (
+                  <div className="max-h-[calc(90vh-15rem)] space-y-3 overflow-y-auto pr-1">
+                    {userNeeds.map((userNeed) => (
+                      <div key={userNeed.user_need_id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-700">{userNeed.status}</span>
+                              <span>{userNeed.need_type}</span>
+                              <span>{userNeed.priorityLevel ? `${userNeed.priorityLevel.name} · ${userNeed.priorityLevel.scale}` : `Priority #${userNeed.priority_level_id}`}</span>
+                            </div>
+                            <h5 className="mt-2 text-base font-bold text-slate-900 dark:text-white">{userNeed.reason}</h5>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {userNeed.user?.full_name ?? userNeed.user?.email ?? `Usuario #${userNeed.user_id}`}
+                            </p>
+                            <p className="mt-2 text-xs text-slate-400">
+                              {format(new Date(userNeed.start_date), 'PPp')}
+                              {' - '}
+                              {format(new Date(userNeed.end_date), 'PPp')}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openUserNeedEditor(userNeed)}
+                              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                            >
+                              <PencilLine size={16} />
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUserNeedDelete(userNeed.user_need_id)}
+                              disabled={userNeedManagerLoading}
+                              className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Trash2 size={16} />
+                              Eliminar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {userNeeds.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">
+                        Todavía no hay user needs registrados.
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+
+              <div className="max-h-[calc(90vh-8rem)] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 pr-2 shadow-sm dark:border-slate-800 dark:bg-slate-950/60">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    {editingUserNeedId ? 'Editar user need' : 'Nuevo user need'}
+                  </h4>
+                  <span className="text-xs text-slate-400">{userNeedManagerLoading ? 'Guardando...' : ''}</span>
+                </div>
+
+                {userNeedManagerMessage ? (
+                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                    {userNeedManagerMessage}
+                  </div>
+                ) : null}
+
+                <form onSubmit={handleUserNeedSubmit} className="mt-5 space-y-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Tipo</label>
+                    <input
+                      value={managedUserNeedType}
+                      onChange={(event) => setManagedUserNeedType(event.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Razón</label>
+                    <textarea
+                      value={managedUserNeedReason}
+                      onChange={(event) => setManagedUserNeedReason(event.target.value)}
+                      rows={3}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Inicio</label>
+                      <input
+                        type="datetime-local"
+                        value={managedUserNeedStartDate}
+                        onChange={(event) => setManagedUserNeedStartDate(event.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Fin</label>
+                      <input
+                        type="datetime-local"
+                        value={managedUserNeedEndDate}
+                        onChange={(event) => setManagedUserNeedEndDate(event.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Estado</label>
+                    <select
+                      value={managedUserNeedStatus}
+                      onChange={(event) => setManagedUserNeedStatus(event.target.value as 'active' | 'inactive' | 'expired')}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    >
+                      <option value="active">Activo</option>
+                      <option value="inactive">Inactivo</option>
+                      <option value="expired">Expirado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Usuario</label>
+                    <select
+                      value={managedUserNeedUserId}
+                      onChange={(event) => setManagedUserNeedUserId(event.target.value)}
+                      disabled={loadingUsers}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    >
+                      <option value="">Selecciona un usuario</option>
+                      {usuarios.map((user) => (
+                        <option key={user.user_id} value={user.user_id}>
+                          #{user.user_id} · {user.full_name ?? user.email ?? 'Sin nombre'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Priority level</label>
+                    <select
+                      value={managedUserNeedPriorityLevelId}
+                      onChange={(event) => setManagedUserNeedPriorityLevelId(event.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    >
+                      <option value="">Selecciona una prioridad</option>
+                      {priorityLevels.map((priorityLevel) => (
+                        <option key={priorityLevel.priority_level_id} value={priorityLevel.priority_level_id}>
+                          #{priorityLevel.priority_level_id} · {priorityLevel.name} · {priorityLevel.scale}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={resetUserNeedForm}
+                      className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+                    >
+                      Nuevo
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={userNeedManagerLoading || loadingUsers || !managedUserNeedUserId || !managedUserNeedPriorityLevelId}
+                      className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           </div>

@@ -7,6 +7,14 @@ export type AuthSession = {
   rememberMe: boolean;
 };
 
+export type RegisterBasicUserInput = {
+  full_name: string;
+  email: string;
+  password: string;
+  user_type?: 'internal' | 'external';
+  status?: 'active' | 'inactive';
+};
+
 const AUTH_STORAGE_KEY = 'workhub-auth-session';
 
 function getStorage(rememberMe: boolean) {
@@ -50,6 +58,17 @@ export async function login(email: string, password: string) {
   return apiRequest<{ message: string; user: AuthUser }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function registerBasicUser(input: RegisterBasicUserInput) {
+  return apiRequest<AuthUser>('/users', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...input,
+      user_type: input.user_type ?? 'internal',
+      status: input.status ?? 'active',
+    }),
   });
 }
 

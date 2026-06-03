@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Building2,
@@ -320,6 +320,7 @@ export default function MapView() {
   const [selectedDate, setSelectedDate] = useState(() => getTodayLocalDateString());
   const [startTime, setStartTime] = useState(timeRange.startTime);
   const [endTime, setEndTime] = useState(timeRange.endTime);
+  const [hiddenKinds, setHiddenKinds] = useState<Set<SpaceKind>>(new Set());
   const currentUserId = useMemo(() => getCurrentUserId(), []);
   const activeReservationStatuses = useMemo(() => getActiveReservationStatuses(), []);
 
@@ -466,12 +467,12 @@ export default function MapView() {
         const removedKinds = new Set<SpaceKind>();
         for (const k of kindsAll) if (!kindsForUser.has(k)) removedKinds.add(k);
 
-        hiddenKindsRef.current = removedKinds;
+        setHiddenKinds(removedKinds);
       })
       .catch(() => {
         if (!mounted) return;
         setAvailabilityById(new Map());
-        hiddenKindsRef.current = new Set();
+        setHiddenKinds(new Set());
       })
       .finally(() => {
         if (mounted) setLoadingAvailability(false);
@@ -480,7 +481,7 @@ export default function MapView() {
     return () => {
       mounted = false;
     };
-  }, [endTime, selectedDate, startTime, currentUserId]);
+  }, [endTime, selectedDate, startTime, currentUserId, spaces]);
 
   const tree = useMemo<MapBuilding[]>(() => {
     return [...buildings]
@@ -567,8 +568,6 @@ export default function MapView() {
     });
   }, [activeReservationStatuses, endTime, selectedDate, startTime, userReservations]);
 
-  const hiddenKindsRef = useRef<Set<SpaceKind>>(new Set());
-
   const hiddenTypes = useMemo(() => {
     const kinds = new Set<SpaceKind>();
 
@@ -576,11 +575,10 @@ export default function MapView() {
       kinds.add(getSpaceKind(reservation.space));
     }
 
-    // Merge server-derived removed kinds (computed in availability effect)
-    for (const k of hiddenKindsRef.current) kinds.add(k);
+    for (const k of hiddenKinds) kinds.add(k);
 
     return kinds;
-  }, [slotReservations]);
+  }, [hiddenKinds, slotReservations]);
 
   const visibleTree = useMemo<MapBuilding[]>(() => {
     return tree

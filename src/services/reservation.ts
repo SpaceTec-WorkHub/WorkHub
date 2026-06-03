@@ -27,6 +27,13 @@ export type ReservationRecord = {
   user_id: number;
   space_id: number;
   space: ReservationSpace;
+  event_id?: number | null;
+  event?: {
+    event_id: number;
+    title: string;
+    start_time?: string;
+    end_time?: string;
+  } | null;
   reassigned_space_id?: number | null;
   check_in_time?: string | null;
   check_out_time?: string | null;
