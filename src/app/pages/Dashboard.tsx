@@ -1,22 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { 
-  Users, 
-  Car, 
-  Clock, 
-  TrendingUp, 
-  MapPin, 
-  Calendar,
-  AlertCircle,
-  CheckCircle2,
-  Sparkles,
-  Loader2
+import {
+  Users, Car, Clock, TrendingUp, MapPin, Calendar,
+  Sparkles, Loader2, AlertCircle, Star
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { getParkingRecommendations, IARecommendation } from '../../services/ia';
+import { getGlobalRecommendations, getParkingRecommendations, IAGlobalRecommendation, IARecommendation } from '../../services/ia';
 import { getStoredSession } from '../../services/auth';
 
-const data = [
+const chartData = [
   { name: 'Lun', ocupacion: 65 },
   { name: 'Mar', ocupacion: 80 },
   { name: 'Mie', ocupacion: 95 },
@@ -25,7 +17,7 @@ const data = [
 ];
 
 const StatCard = ({ title, value, subtext, icon: Icon, colorClass, trend }: any) => (
-  <motion.div 
+  <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm"
@@ -46,68 +38,139 @@ const StatCard = ({ title, value, subtext, icon: Icon, colorClass, trend }: any)
   </motion.div>
 );
 
-function scoreLabel(score: number): string {
-  if (score >= 0.8) return 'Altamente recomendado';
-  if (score >= 0.5) return 'Buena opción';
-  return 'Disponible';
+function trafficInfo(index: number): { color: string; label: string } {
+  if (index <= 0.35) return { color: 'bg-emerald-100 text-emerald-700', label: 'Poco tráfico' };
+  if (index <= 0.65) return { color: 'bg-amber-100 text-amber-700',     label: 'Tráfico moderado' };
+  return                     { color: 'bg-red-100 text-red-700',         label: 'Mucho tráfico' };
 }
 
-function scoreColor(score: number): string {
-  if (score >= 0.8) return 'bg-emerald-100 text-emerald-700';
-  if (score >= 0.5) return 'bg-blue-100 text-blue-700';
-  return 'bg-slate-100 text-slate-600';
-}
-
-const ParkingRecommendationCard = ({ rec }: { rec: IARecommendation }) => (
-  <div className="flex items-start gap-4 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors">
-    <div className="p-2 rounded-full bg-blue-100 text-blue-600 shrink-0">
-      <Car size={18} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center justify-between gap-2">
-        <h4 className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-          Cajón #{rec.space_id} — {rec.location}
-        </h4>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${scoreColor(rec.recommendation_score)}`}>
-          {Math.round(rec.recommendation_score * 100)}%
-        </span>
-      </div>
-      <p className="text-sm text-slate-500 mt-0.5">{scoreLabel(rec.recommendation_score)}</p>
-    </div>
-  </div>
-);
-
-export default function Dashboard() {
-  const [recommendations, setRecommendations] = useState<IARecommendation[]>([]);
-  const [loadingRecs, setLoadingRecs] = useState(true);
-  const [recsError, setRecsError] = useState('');
-
-  const session = getStoredSession();
-  const user = session?.user as { full_name?: string; first_name?: string } | undefined;
-  const displayName = user?.full_name ?? user?.first_name ?? 'Usuario';
+function GlobalRecommendationSection({ tipo, label, icon: Icon }: {
+  tipo: 1 | 2 | 3;
+  label: string;
+  icon: React.ElementType;
+}) {
+  const [data, setData]       = useState<IAGlobalRecommendation | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
 
   useEffect(() => {
-    getParkingRecommendations()
-      .then((data) => {
-        // Sort by score desc, show top 3
-        const sorted = [...data].sort((a, b) => b.recommendation_score - a.recommendation_score);
-        setRecommendations(sorted.slice(0, 3));
-      })
-      .catch((err) => setRecsError(err.message))
-      .finally(() => setLoadingRecs(false));
-  }, []);
+    getGlobalRecommendations(tipo)
+      .then(setData)
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [tipo]);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="p-1.5 bg-blue-100 rounded-lg">
+          <Icon size={15} className="text-blue-600" />
+        </div>
+        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</p>
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 text-slate-400 text-sm py-2">
+          <Loader2 size={14} className="animate-spin" /> Consultando modelo...
+        </div>
+      )}
+      {!loading && error && (
+        <div className="flex items-start gap-2 text-red-500 text-xs p-2 bg-red-50 rounded-lg">
+          <AlertCircle size={13} className="mt-0.5 shrink-0" /> No disponible ahora
+        </div>
+      )}
+      {!loading && !error && data && (
+        <div className="space-y-2">
+          {data.best_days_to_attend_ranking.slice(0, 3).map(day => {
+            const { color, label: trafficLabel } = trafficInfo(day.estimated_traffic_index);
+            return (
+              <div key={day.day_id} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {day.position === 1 && <Star size={12} className="text-amber-500 shrink-0" />}
+                  <span className="text-sm text-slate-700 dark:text-slate-300">
+                    {day.position === 1 ? <strong>{day.day_name}</strong> : day.day_name}
+                  </span>
+                </div>
+                <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${color}`}>
+                  {trafficLabel}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PersonalizedSection({ userId }: { userId: number }) {
+  const [data, setData]       = useState<IARecommendation | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
+
+  useEffect(() => {
+    getParkingRecommendations(userId)
+      .then(setData)
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  if (loading) return (
+    <div className="flex items-center gap-2 text-slate-400 text-sm py-3">
+      <Loader2 size={14} className="animate-spin" /> Cargando tu recomendación...
+    </div>
+  );
+
+  if (error) return (
+    <div className="flex items-start gap-2 text-red-500 text-xs p-2 bg-red-50 rounded-lg">
+      <AlertCircle size={13} className="mt-0.5 shrink-0" /> No disponible ahora
+    </div>
+  );
+
+  if (!data) return null;
+
+  const { parking_recommendation: park, workspace_recommendation: work } = data;
+
+  return (
+    <div className="space-y-3">
+      <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+        <div className="flex items-center gap-2 mb-1">
+          <Car size={14} className="text-blue-600 shrink-0" />
+          <p className="text-xs font-semibold text-blue-700">Tu cajón recomendado</p>
+        </div>
+        <p className="text-sm font-bold text-slate-800">{park.space_code} — Zona {park.zone_name}</p>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Mejor día: <strong>{park.best_day_to_attend}</strong> · {Math.round(park.affinity_probability)}% afinidad
+        </p>
+      </div>
+
+      <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+        <div className="flex items-center gap-2 mb-1">
+          <Users size={14} className="text-emerald-600 shrink-0" />
+          <p className="text-xs font-semibold text-emerald-700">Tu escritorio recomendado</p>
+        </div>
+        <p className="text-sm font-bold text-slate-800">{work.space_code} — Zona {work.zone_name}</p>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Mejor día: <strong>{work.best_day_to_attend}</strong> · {Math.round(work.affinity_probability)}% afinidad
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function Dashboard() {
+  const session = getStoredSession();
+  const user = session?.user as { full_name?: string; first_name?: string; user_id?: number; id?: number } | undefined;
+  const displayName = user?.full_name ?? user?.first_name ?? 'Usuario';
+  const userId = user?.user_id ?? user?.id ?? 1;
 
   const today = new Date().toLocaleDateString('es-MX', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
   const todayFormatted = today.charAt(0).toUpperCase() + today.slice(1);
 
   return (
     <div className="space-y-8">
-      {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Buenos días, {displayName}</h1>
@@ -123,43 +186,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="Escritorios Disponibles" 
-          value="42" 
-          subtext="De 150 totales en piso 4"
-          icon={Users}
-          colorClass="bg-blue-500 text-blue-600"
-          trend={12}
-        />
-        <StatCard 
-          title="Estacionamiento" 
-          value="15" 
-          subtext="Lugares libres en Sótano 2"
-          icon={Car}
-          colorClass="bg-indigo-500 text-indigo-600"
-          trend={-5}
-        />
-        <StatCard 
-          title="Promedio Ocupación" 
-          value="78%" 
-          subtext="Esta semana"
-          icon={TrendingUp}
-          colorClass="bg-emerald-500 text-emerald-600"
-          trend={8}
-        />
-        <StatCard 
-          title="Próxima Reserva" 
-          value="14:00" 
-          subtext="Sala de Juntas B"
-          icon={Clock}
-          colorClass="bg-amber-500 text-amber-600"
-        />
+        <StatCard title="Escritorios Disponibles" value="42" subtext="De 150 totales en piso 4" icon={Users} colorClass="bg-blue-500 text-blue-600" trend={12} />
+        <StatCard title="Estacionamiento" value="15" subtext="Lugares libres en Sótano 2" icon={Car} colorClass="bg-indigo-500 text-indigo-600" trend={-5} />
+        <StatCard title="Promedio Ocupación" value="78%" subtext="Esta semana" icon={TrendingUp} colorClass="bg-emerald-500 text-emerald-600" trend={8} />
+        <StatCard title="Próxima Reserva" value="14:00" subtext="Sala de Juntas B" icon={Clock} colorClass="bg-amber-500 text-amber-600" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Chart Section */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white">Ocupación Semanal</h3>
@@ -170,66 +204,44 @@ export default function Dashboard() {
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="colorOcupacion" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  itemStyle={{ color: '#2563eb' }}
-                />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+                <Tooltip contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} itemStyle={{ color: '#2563eb' }} />
                 <Area type="monotone" dataKey="ocupacion" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorOcupacion)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Right Sidebar - AI Recommendations & Quick Actions */}
         <div className="space-y-6">
-          {/* AI Parking Recommendations */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <Sparkles size={18} className="text-blue-500" />
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Recomendaciones IA</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Para ti</h3>
             </div>
+            <PersonalizedSection userId={userId} />
+          </div>
 
-            {loadingRecs && (
-              <div className="flex items-center justify-center gap-2 py-8 text-slate-400">
-                <Loader2 size={18} className="animate-spin" />
-                <span className="text-sm">Consultando modelo...</span>
-              </div>
-            )}
-
-            {!loadingRecs && recsError && (
-              <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg text-red-600 text-sm">
-                <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                <span>No se pudieron cargar las recomendaciones. {recsError}</span>
-              </div>
-            )}
-
-            {!loadingRecs && !recsError && recommendations.length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-6">
-                No hay recomendaciones disponibles en este momento.
-              </p>
-            )}
-
-            {!loadingRecs && !recsError && recommendations.length > 0 && (
-              <div className="space-y-3">
-                {recommendations.map((rec) => (
-                  <ParkingRecommendationCard key={rec.space_id} rec={rec} />
-                ))}
-              </div>
-            )}
-
-            <button className="w-full mt-4 py-2 text-sm text-blue-600 font-medium hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
-              Ver más sugerencias
-            </button>
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
+            <div className="flex items-center gap-2 mb-5">
+              <Sparkles size={18} className="text-blue-500" />
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Tendencias globales</h3>
+            </div>
+            <div className="space-y-5">
+              <GlobalRecommendationSection tipo={1} label="Mejores días para estacionar" icon={Car} />
+              <div className="border-t border-slate-100 dark:border-slate-700" />
+              <GlobalRecommendationSection tipo={2} label="Mejores días para escritorio" icon={Users} />
+              <div className="border-t border-slate-100 dark:border-slate-700" />
+              <GlobalRecommendationSection tipo={3} label="Mejores días para sala" icon={Calendar} />
+            </div>
           </div>
 
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">

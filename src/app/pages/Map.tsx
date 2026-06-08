@@ -10,16 +10,15 @@ import {
   Calendar as CalendarIcon,
   ZoomIn,
   ZoomOut,
-  Zap,
-  Sparkles
+  Zap
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { getSpace, ApiSpace } from '../../services/space';
 import { createReservation } from '../../services/reservation';
-import { getParkingRecommendations, IARecommendation } from '../../services/ia';
 
+// Types for our map items
 type SpotStatus = 'available' | 'occupied' | 'reserved' | 'blocked';
 type SpotType = 'desk' | 'parking';
 
@@ -31,6 +30,29 @@ interface Spot {
   zone: string;
 }
 
+// Generate some mock data
+/*
+const generateSpots = (type: SpotType, count: number): Spot[] => {
+  return Array.from({ length: count }).map((_, i) => {
+    const r = Math.random();
+    let status: SpotStatus = 'available';
+    if (r > 0.7) status = 'occupied';
+    else if (r > 0.9) status = 'blocked';
+    else if (r > 0.65 && r < 0.7) status = 'reserved'; // My reservation
+
+    return {
+      id: `${type}-${i}`,
+      type,
+      status,
+      label: `${type === 'desk' ? 'D' : 'P'}-${i + 1}`,
+      zone: i < count / 2 ? 'Zone A' : 'Zone B',
+    };
+  });
+};
+
+const desks = generateSpots('desk', 48);
+const parkingSpots = generateSpots('parking', 30);
+*/
 export default function MapView() {
   const navigate = useNavigate();
   const [spots, setSpots] = useState<Spot[]>([]);
@@ -40,15 +62,10 @@ export default function MapView() {
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [filterZone, setFilterZone] = useState<string>('all');
 
-  // AI recommendations for parking
-  const [recommendations, setRecommendations] = useState<IARecommendation[]>([]);
-  const [loadingRecs, setLoadingRecs] = useState(false);
-
   const currentSpots = spots.filter((spot) =>
     activeTab === 'office' ? spot.type === 'desk' : spot.type === 'parking'
   );
 
-  // Load spaces from backend
   useEffect(() => {
     getSpace()
       .then((data) => {
@@ -64,54 +81,38 @@ export default function MapView() {
           label: space.code,
           zone: space.zone?.name || 'Sin zona',
         }));
+
         setSpots(mappedSpots);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
-  // Load AI recommendations when switching to parking tab
-  useEffect(() => {
-    if (activeTab !== 'parking') return;
-    if (recommendations.length > 0) return; // already loaded
-
-    setLoadingRecs(true);
-    getParkingRecommendations()
-      .then(setRecommendations)
-      .catch(() => {
-        // Fail silently — map still works without AI highlights
-      })
-      .finally(() => setLoadingRecs(false));
-  }, [activeTab]);
-
-  const getRecommendationForSpot = (spotId: string): IARecommendation | undefined =>
-    recommendations.find((r) => String(r.space_id) === spotId);
-
   const handleSpotClick = (spot: Spot) => {
     if (spot.status === 'blocked' || spot.status === 'occupied') {
       toast.error(`El espacio ${spot.label} no está disponible.`);
       return;
     }
+
     setSelectedSpot(spot);
   };
 
   const handleReserve = async () => {
     if (!selectedSpot) return;
+
     navigate('/reservation', {
       state: {
         spaceId: Number(selectedSpot.id),
         spaceCode: selectedSpot.label,
       },
     });
+
     toast.success(`Espacio ${selectedSpot.label} listo para reservar.`);
     setSelectedSpot(null);
   };
 
-  const selectedRec = selectedSpot ? getRecommendationForSpot(selectedSpot.id) : undefined;
-
   if (loading) return <p>Cargando mapa...</p>;
   if (error) return <p>Error: {error}</p>;
-
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
       {/* Controls Header */}
@@ -159,20 +160,9 @@ export default function MapView() {
             <span className="flex items-center gap-1"><span className="w-3 h-3 bg-emerald-400 rounded-full"></span> Libre</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-400 rounded-full"></span> Ocupado</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 bg-yellow-400 rounded-full"></span> Mío</span>
-            {activeTab === 'parking' && (
-              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-purple-400 rounded-full"></span> IA</span>
-            )}
           </div>
         </div>
       </div>
-
-      {/* AI loading banner */}
-      {activeTab === 'parking' && loadingRecs && (
-        <div className="mb-3 flex items-center gap-2 px-4 py-2 bg-purple-50 border border-purple-100 rounded-lg text-purple-600 text-sm">
-          <Sparkles size={15} className="animate-pulse" />
-          Calculando mejores lugares con IA...
-        </div>
-      )}
 
       <div className="flex gap-6 flex-1 min-h-0">
         {/* Map Area */}
@@ -197,45 +187,30 @@ export default function MapView() {
                 activeTab === 'office' ? "grid-cols-8" : "grid-cols-6"
               )}
             >
-              {currentSpots.map((spot) => {
-                const rec = getRecommendationForSpot(spot.id);
-                const isAIRecommended = !!rec && spot.status === 'available';
-
-                return (
-                  <motion.button
-                    key={spot.id}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => handleSpotClick(spot)}
-                    title={isAIRecommended ? `IA: ${Math.round(rec.recommendation_score * 100)}% recomendado` : spot.label}
-                    className={clsx(
-                      "relative rounded-lg flex items-center justify-center transition-colors shadow-sm border",
-                      activeTab === 'office' ? "w-16 h-16" : "w-20 h-32",
-                      spot.status === 'available' && !isAIRecommended && "bg-emerald-50 border-emerald-200 hover:bg-emerald-100 text-emerald-700",
-                      spot.status === 'available' && isAIRecommended && "bg-purple-50 border-purple-300 hover:bg-purple-100 text-purple-700 ring-2 ring-purple-400",
-                      spot.status === 'occupied' && "bg-red-50 border-red-200 text-red-700 cursor-not-allowed",
-                      spot.status === 'blocked' && "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed",
-                      spot.status === 'reserved' && "bg-yellow-50 border-yellow-200 text-yellow-700 ring-2 ring-yellow-400",
-                      selectedSpot?.id === spot.id && "ring-2 ring-blue-600 ring-offset-2 z-10"
-                    )}
-                  >
-                    <span className="font-semibold text-sm">{spot.label}</span>
-
-                    {/* AI badge */}
-                    {isAIRecommended && (
-                      <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-purple-500 text-white border-2 border-white flex items-center justify-center shadow-sm">
-                        <Sparkles size={10} />
-                      </div>
-                    )}
-
-                    {spot.status === 'occupied' && (
-                      <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-blue-100 text-blue-600 border border-white flex items-center justify-center text-[10px] font-bold shadow-sm">
-                        {String.fromCharCode(65 + Math.floor(Math.random() * 26))}
-                      </div>
-                    )}
-                  </motion.button>
-                );
-              })}
+              {currentSpots.map((spot) => (
+                <motion.button
+                  key={spot.id}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleSpotClick(spot)}
+                  className={clsx(
+                    "relative rounded-lg flex items-center justify-center transition-colors shadow-sm border",
+                    activeTab === 'office' ? "w-16 h-16" : "w-20 h-32",
+                    spot.status === 'available' && "bg-emerald-50 border-emerald-200 hover:bg-emerald-100 text-emerald-700",
+                    spot.status === 'occupied' && "bg-red-50 border-red-200 text-red-700 cursor-not-allowed",
+                    spot.status === 'blocked' && "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed",
+                    spot.status === 'reserved' && "bg-yellow-50 border-yellow-200 text-yellow-700 ring-2 ring-yellow-400",
+                    selectedSpot?.id === spot.id && "ring-2 ring-blue-600 ring-offset-2 z-10"
+                  )}
+                >
+                  <span className="font-semibold text-sm">{spot.label}</span>
+                  {spot.status === 'occupied' && (
+                    <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-blue-100 text-blue-600 border border-white flex items-center justify-center text-[10px] font-bold shadow-sm">
+                      {String.fromCharCode(65 + Math.floor(Math.random() * 26))}
+                    </div>
+                  )}
+                </motion.button>
+              ))}
             </motion.div>
           </div>
         </div>
@@ -249,7 +224,7 @@ export default function MapView() {
               exit={{ opacity: 0, x: 20 }}
               className="w-80 bg-white border border-slate-200 rounded-xl shadow-lg p-6 flex flex-col"
             >
-              <div className="flex justify-between items-start mb-4">
+              <div className="flex justify-between items-start mb-6">
                 <div>
                   <h3 className="text-xl font-bold text-slate-800">
                     {activeTab === 'office' ? 'Escritorio' : 'Cajón'} {selectedSpot.label}
@@ -260,21 +235,6 @@ export default function MapView() {
                   Disponible
                 </div>
               </div>
-
-              {/* AI Recommendation Badge */}
-              {selectedRec && (
-                <div className="mb-4 flex items-center gap-3 p-3 bg-purple-50 border border-purple-100 rounded-xl">
-                  <div className="p-1.5 bg-purple-100 rounded-full">
-                    <Sparkles size={16} className="text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-purple-800">Recomendado por IA</p>
-                    <p className="text-xs text-purple-600">
-                      Score: {Math.round(selectedRec.recommendation_score * 100)}% · {selectedRec.location}
-                    </p>
-                  </div>
-                </div>
-              )}
 
               <div className="space-y-4 mb-8">
                 <div className="flex items-center gap-3 text-slate-600">

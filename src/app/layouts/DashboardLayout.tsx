@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 import { Outlet } from 'react-router';
 import { Bell } from 'lucide-react';
 import { notifications } from '../data/notifications';
+import AIChatBubble from '../components/AIChatBubble';
 
 export default function DashboardLayout() {
   const [showNotifications, setShowNotifications] = useState(false);
@@ -111,6 +112,8 @@ export default function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+
+      <AIChatBubble />
     </div>
   );
 }
