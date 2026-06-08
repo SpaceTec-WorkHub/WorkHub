@@ -91,9 +91,7 @@ function GlobalRecommendationSection({ tipo, label, icon: Icon }: {
                     {day.position === 1 ? <strong>{day.day_name}</strong> : day.day_name}
                   </span>
                 </div>
-                <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${color}`}>
-                  {trafficLabel}
-                </span>
+                
               </div>
             );
           })}
@@ -140,7 +138,7 @@ function PersonalizedSection({ userId }: { userId: number }) {
         </div>
         <p className="text-sm font-bold text-slate-800">{park.space_code} — Zona {park.zone_name}</p>
         <p className="text-xs text-slate-500 mt-0.5">
-          Mejor día: <strong>{park.best_day_to_attend}</strong> · {Math.round(park.affinity_probability)}% afinidad
+          Mejor día: <strong>{park.best_day_to_attend}</strong> 
         </p>
       </div>
 
@@ -151,7 +149,7 @@ function PersonalizedSection({ userId }: { userId: number }) {
         </div>
         <p className="text-sm font-bold text-slate-800">{work.space_code} — Zona {work.zone_name}</p>
         <p className="text-xs text-slate-500 mt-0.5">
-          Mejor día: <strong>{work.best_day_to_attend}</strong> · {Math.round(work.affinity_probability)}% afinidad
+          Mejor día: <strong>{work.best_day_to_attend}</strong> 
         </p>
       </div>
     </div>
