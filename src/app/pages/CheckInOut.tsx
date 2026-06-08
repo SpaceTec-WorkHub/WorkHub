@@ -11,19 +11,133 @@ import {
   QrCode,
   RotateCcw,
   TriangleAlert,
+  X,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getCurrentUserId } from '../../services/auth';
+import { useNavigate } from 'react-router';
+import { getCurrentUserId, isAdminUser } from '../../services/auth';
 import {
+  checkInEventReservation,
   checkInReservation,
   checkOutReservation,
   extendReservation,
+  getReservationSpaces,
   getUserReservations,
   reportReservationIncident,
   ReservationRecord,
+  ReservationSpace,
 } from '../../services/reservation';
 
 type IncidentType = 'occupied' | 'reassignment' | 'other';
+
+const getSpaceKind = (typeName: string): 'desk' | 'meeting' | 'parking' | 'other' => {
+  const n = typeName.toLowerCase();
+  if (n.includes('parking')) return 'parking';
+  if (n.includes('room') || n.includes('sala') || n.includes('meeting') || n.includes('juntas')) return 'meeting';
+  if (n.includes('desk') || n.includes('escritorio')) return 'desk';
+  return 'other';
+};
+
+const isoToDateStr = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const isoToTimeStr = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+function AlternativeSpaceSelector({
+  spaces,
+  spaceTypeName,
+  startTime,
+  endTime,
+  onSelect,
+  onDismiss,
+}: {
+  spaces: ReservationSpace[];
+  spaceTypeName: string;
+  startTime: string;
+  endTime: string;
+  onSelect: (space: ReservationSpace) => void;
+  onDismiss: () => void;
+}) {
+  const byZone = useMemo(() => {
+    const map = new Map<string, ReservationSpace[]>();
+    for (const s of spaces) {
+      const zone = s.zone?.name ?? 'Sin zona';
+      if (!map.has(zone)) map.set(zone, []);
+      map.get(zone)!.push(s);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [spaces]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onDismiss} />
+      <div className="relative z-10 flex w-[min(96vw,680px)] max-h-[85vh] flex-col rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-fuchsia-100 px-3 py-1 text-[11px] font-semibold text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-200">
+              <TriangleAlert size={13} />
+              Espacios alternativos
+            </div>
+            <h2 className="mt-1.5 text-base font-bold text-slate-900 dark:text-white">
+              ¿Necesitas otro espacio de tipo {spaceTypeName}?
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {format(new Date(startTime), 'dd/MM/yyyy HH:mm')} – {format(new Date(endTime), 'HH:mm')} · Selecciona uno para hacer la nueva reserva, o cierra si no es necesario.
+            </p>
+          </div>
+          <button type="button" onClick={onDismiss} className="rounded-full border border-slate-200 p-2 text-slate-400 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {spaces.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+              No hay espacios alternativos disponibles para este horario.
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {byZone.map(([zoneName, zoneSpaces]) => (
+                <div key={zoneName}>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">{zoneName}</p>
+                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                    {zoneSpaces.map((space) => (
+                      <button
+                        key={space.space_id}
+                        type="button"
+                        onClick={() => onSelect(space)}
+                        className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-center text-emerald-800 transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300"
+                      >
+                        <span className="text-sm font-bold">{space.code}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.15em] opacity-70">Libre</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end border-t border-slate-100 px-5 py-4 dark:border-slate-800">
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            No es necesario
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const statusLabels: Record<ReservationRecord['status'], string> = {
   reserved: 'Reservada',
@@ -74,6 +188,7 @@ function requestCurrentLocation() {
 }
 
 export default function CheckInOut() {
+  const navigate = useNavigate();
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [selectedReservationIndex, setSelectedReservationIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -84,8 +199,12 @@ export default function CheckInOut() {
   const [incidentType, setIncidentType] = useState<IncidentType>('occupied');
   const [incidentDescription, setIncidentDescription] = useState('');
   const [incidentNotes, setIncidentNotes] = useState('');
+  const [alternativeSpaces, setAlternativeSpaces] = useState<ReservationSpace[]>([]);
+  const [showAlternativeModal, setShowAlternativeModal] = useState(false);
+  const [incidentTimeRange, setIncidentTimeRange] = useState<{ start: string; end: string; typeName: string } | null>(null);
 
   const currentUserId = useMemo(() => getCurrentUserId(), []);
+  const isAdmin = useMemo(() => isAdminUser(), []);
 
   const sortedReservations = useMemo(() => {
     return [...reservations].sort((left, right) => {
@@ -169,6 +288,37 @@ export default function CheckInOut() {
     }
   };
 
+  const handleEventCheckIn = async () => {
+    if (!activeReservation) {
+      return;
+    }
+
+    if (!isAdmin || !activeReservation.event_id) {
+      setError('Solo un administrador puede hacer check-in de evento.');
+      return;
+    }
+
+    if (!canCheckInWindow) {
+      setError('El check-in solo está disponible desde 15 minutos antes del inicio y hasta la hora final de la reserva.');
+      return;
+    }
+
+    setActionLoading(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const location = await requestCurrentLocation();
+      const result = await checkInEventReservation(activeReservation.reservation_id, location);
+      await refreshReservations();
+      setMessage(`Check-in de evento registrado correctamente. Se actualizaron ${result.checked_in_count} reservas.`);
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : 'No fue posible registrar el check-in del evento.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleCheckOut = async () => {
     if (!activeReservation) {
       return;
@@ -220,29 +370,64 @@ export default function CheckInOut() {
     setError('');
     setMessage('');
 
+    // Capture reservation info before refreshing (activeReservation may change)
+    const resStart = activeReservation.start_time;
+    const resEnd = activeReservation.end_time;
+    const resSpaceId = activeReservation.space_id;
+    const spaceTypeName = activeReservation.space?.space_type?.name ?? 'Espacio';
+    const spaceKind = getSpaceKind(spaceTypeName);
+
     try {
-      const result = await reportReservationIncident(activeReservation.reservation_id, {
+      await reportReservationIncident(activeReservation.reservation_id, {
         type: incidentType,
         description: incidentDescription.trim(),
         notes: incidentNotes.trim() || undefined,
       });
 
       await refreshReservations();
-      setMessage(
-        result.alternative_space
-          ? `Incidencia registrada. Se sugirió reasignación al espacio ${result.alternative_space.code}.`
-          : 'Incidencia registrada. No se encontró un espacio alternativo disponible.',
-      );
+      setMessage('Incidencia registrada. Revisa los espacios alternativos disponibles.');
       setIncidentDescription('');
       setIncidentNotes('');
       setIncidentType('occupied');
+
+      // Fetch alternative spaces of the same type (without userId to avoid type-conflict filtering)
+      try {
+        const dateStr = isoToDateStr(resStart);
+        const startStr = isoToTimeStr(resStart);
+        const endStr = isoToTimeStr(resEnd);
+        const available = await getReservationSpaces(dateStr, startStr, endStr);
+        const alternatives = available.filter(
+          (s) => getSpaceKind(s.space_type?.name ?? '') === spaceKind && s.space_id !== resSpaceId,
+        );
+        setAlternativeSpaces(alternatives);
+        setIncidentTimeRange({ start: resStart, end: resEnd, typeName: spaceTypeName });
+        setShowAlternativeModal(true);
+      } catch {
+        // If fetching alternatives fails, just show the success message without the modal
+      }
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : 'No fue posible reportar la incidencia.');
     } finally {
       setActionLoading(false);
     }
   };
+  const handleSelectAlternative = (space: ReservationSpace) => {
+    if (!incidentTimeRange) return;
+    navigate('/reservation', {
+      state: {
+        date: isoToDateStr(incidentTimeRange.start),
+        startTime: isoToTimeStr(incidentTimeRange.start),
+        endTime: isoToTimeStr(incidentTimeRange.end),
+        spaceId: space.space_id,
+        spaceCode: space.code,
+      },
+    });
+  };
+
   const canCheckIn = Boolean(activeReservation && activeReservation.status === 'reserved');
+  const canCheckInEvent = Boolean(
+    isAdmin && activeReservation && activeReservation.status === 'reserved' && activeReservation.event_id,
+  );
   const canCheckOut = Boolean(
     activeReservation && ['checked_in', 'checkout_pending'].includes(activeReservation.status),
   );
@@ -359,7 +544,7 @@ export default function CheckInOut() {
                       </div>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <div className="grid gap-3 md:grid-cols-4">
                       <button
                         onClick={handleCheckIn}
                         disabled={!canCheckInWindow || actionLoading}
@@ -367,6 +552,14 @@ export default function CheckInOut() {
                       >
                         <LogIn size={18} />
                         Check-in con ubicación
+                      </button>
+                      <button
+                        onClick={handleEventCheckIn}
+                        disabled={!canCheckInEvent || actionLoading}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                      >
+                        <CheckCircle size={18} />
+                        Check-in del evento
                       </button>
                       <button
                         onClick={handleCheckOut}
@@ -563,6 +756,17 @@ export default function CheckInOut() {
           </div>
         </div>
       </div>
+
+      {showAlternativeModal && incidentTimeRange ? (
+        <AlternativeSpaceSelector
+          spaces={alternativeSpaces}
+          spaceTypeName={incidentTimeRange.typeName}
+          startTime={incidentTimeRange.start}
+          endTime={incidentTimeRange.end}
+          onSelect={handleSelectAlternative}
+          onDismiss={() => setShowAlternativeModal(false)}
+        />
+      ) : null}
     </div>
   );
 }

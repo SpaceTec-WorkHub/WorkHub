@@ -9,6 +9,13 @@ export type ApiSpace = {
   is_priority: boolean;
   zone?: {
     name: string;
+    floor?: {
+      name: string;
+      building?: {
+        name: string;
+        building_id: number;
+      };
+    };
   };
   space_type?: {
     name: string;

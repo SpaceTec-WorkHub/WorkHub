@@ -11,13 +11,13 @@ import {
   History,
   Search,
   RotateCcw,
-  Trash2,
   TriangleAlert,
   MapPin,
+  Users,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { getCurrentUserId, isAdminUser } from '../../services/auth';
-import { cancelReservation, deleteReservation, getUserReservations, ReservationRecord } from '../../services/reservation';
+import { cancelReservation, getUserReservations, updateReservation, ReservationRecord } from '../../services/reservation';
 
 const statusLabels: Record<ReservationRecord['status'], string> = {
   reserved: 'Reservada',
@@ -71,17 +71,71 @@ const formatDateTime = (value?: string | null) => {
 const formatReservationRange = (reservation: ReservationRecord) =>
   `${format(new Date(reservation.start_time), 'dd/MM/yyyy HH:mm')} - ${format(new Date(reservation.end_time), 'HH:mm')}`;
 
+const isoToDate = (iso: string) => format(new Date(iso), 'yyyy-MM-dd');
+const isoToTime = (iso: string) => format(new Date(iso), 'HH:mm');
+const buildIso = (date: string, time: string) => {
+  const [y, mo, d] = date.split('-').map(Number);
+  const [h, mi] = time.split(':').map(Number);
+  return new Date(y, mo - 1, d, h, mi, 0, 0).toISOString();
+};
+const todayStr = () => format(new Date(), 'yyyy-MM-dd');
+
 function ReservationCard({
   reservation,
   onAction,
-  onViewAvailability,
-  deletingReservationId,
+  onEditSuccess,
 }: {
   reservation: ReservationRecord;
   onAction: (reservation: ReservationRecord) => void;
-  onViewAvailability: (reservation: ReservationRecord) => void;
-  deletingReservationId: number | null;
+  onEditSuccess: () => void;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDate, setEditDate] = useState(() => isoToDate(reservation.start_time));
+  const [editStart, setEditStart] = useState(() => isoToTime(reservation.start_time));
+  const [editEnd, setEditEnd] = useState(() => isoToTime(reservation.end_time));
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+
+  const handleOpenEdit = () => {
+    setEditDate(isoToDate(reservation.start_time));
+    setEditStart(isoToTime(reservation.start_time));
+    setEditEnd(isoToTime(reservation.end_time));
+    setEditError('');
+    setEditSuccess('');
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    setEditError('');
+    setEditSuccess('');
+    if (!editDate || !editStart || !editEnd) {
+      setEditError('Completa todos los campos de horario.');
+      return;
+    }
+    const newStart = buildIso(editDate, editStart);
+    const newEnd = buildIso(editDate, editEnd);
+    if (new Date(newEnd) <= new Date(newStart)) {
+      setEditError('La hora de fin debe ser posterior a la hora de inicio.');
+      return;
+    }
+    if (new Date(newEnd) <= new Date()) {
+      setEditError('El horario seleccionado ya terminó.');
+      return;
+    }
+    setEditLoading(true);
+    try {
+      await updateReservation(reservation.reservation_id, { start_time: newStart, end_time: newEnd });
+      setEditSuccess('Horario actualizado correctamente.');
+      setIsEditing(false);
+      onEditSuccess();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'El horario no está disponible o es inválido.');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   return (
     <motion.article
       key={reservation.reservation_id}
@@ -171,39 +225,111 @@ function ReservationCard({
               ))}
             </div>
           ) : null}
+
+          {reservation.guests && reservation.guests.length > 0 ? (
+            <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <Users size={13} />
+                Invitados ({reservation.guests.length})
+              </div>
+              <div className="space-y-1.5">
+                {reservation.guests.map((guest) => (
+                  <div key={guest.guest_id} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm dark:bg-slate-800">
+                    <span className="font-medium text-slate-700 dark:text-slate-200">{guest.name}</span>
+                    {guest.email ? (
+                      <span className="text-slate-400">·</span>
+                    ) : null}
+                    {guest.email ? (
+                      <span className="text-slate-500 dark:text-slate-400">{guest.email}</span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3 border-t border-slate-200 px-5 py-4 dark:border-slate-700">
-        <button
-          type="button"
-          disabled={deletingReservationId === reservation.reservation_id}
-          onClick={() => onAction(reservation)}
-          className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Trash2 size={16} />
-          {deletingReservationId === reservation.reservation_id
-            ? 'Procesando...'
-            : reservation.status === 'cancelled'
-              ? 'Eliminar'
-              : 'Cancelar'}
-        </button>
-
-        <button
-          type="button"
-          disabled={reservation.status !== 'cancelled'}
-          onClick={() => onViewAvailability(reservation)}
-          className={[
-            'inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors',
-            reservation.status === 'cancelled'
-              ? 'rounded-xl bg-blue-600 text-white hover:bg-blue-500'
-              : 'rounded-xl border border-slate-200 bg-white text-slate-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800',
-          ].join(' ')}
-        >
-          <PencilLine size={16} />
-          {reservation.status === 'cancelled' ? 'Ver disponibilidad' : 'Editar'}
-        </button>
-      </div>
+      {reservation.status === 'reserved' ? (
+        <>
+          {isEditing ? (
+            <div className="border-t border-slate-200 px-5 py-5 space-y-4 dark:border-slate-700">
+              <p className="text-sm font-semibold text-slate-800 dark:text-white">Editar horario</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Fecha</span>
+                  <input
+                    type="date"
+                    value={editDate}
+                    min={todayStr()}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Inicio</span>
+                  <input
+                    type="time"
+                    value={editStart}
+                    onChange={(e) => setEditStart(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Fin</span>
+                  <input
+                    type="time"
+                    value={editEnd}
+                    onChange={(e) => setEditEnd(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  />
+                </label>
+              </div>
+              {editError ? (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{editError}</p>
+              ) : null}
+              {editSuccess ? (
+                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{editSuccess}</p>
+              ) : null}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={editLoading}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {editLoading ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                >
+                  Cancelar edición
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-3 border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => onAction(reservation)}
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenEdit}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <PencilLine size={16} />
+                Editar horario
+              </button>
+            </div>
+          )}
+        </>
+      ) : null}
     </motion.article>
   );
 }
@@ -213,15 +339,13 @@ function AdminEventGroupCard({
   isExpanded,
   onToggle,
   onAction,
-  onViewAvailability,
-  deletingReservationId,
+  onEditSuccess,
 }: {
   group: ReservationHistoryGroup;
   isExpanded: boolean;
   onToggle: (groupKey: string) => void;
   onAction: (reservation: ReservationRecord) => void;
-  onViewAvailability: (reservation: ReservationRecord) => void;
-  deletingReservationId: number | null;
+  onEditSuccess: () => void;
 }) {
   return (
     <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
@@ -266,8 +390,7 @@ function AdminEventGroupCard({
               key={reservation.reservation_id}
               reservation={reservation}
               onAction={onAction}
-              onViewAvailability={onViewAvailability}
-              deletingReservationId={deletingReservationId}
+              onEditSuccess={onEditSuccess}
             />
           ))}
         </div>
@@ -280,10 +403,10 @@ export default function ReservationHistory() {
   const navigate = useNavigate();
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deletingReservationId, setDeletingReservationId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>('all');
+  const [dateFilter, setDateFilter] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const isAdmin = useMemo(() => isAdminUser(), []);
 
@@ -309,35 +432,26 @@ export default function ReservationHistory() {
   }, [currentUserId]);
 
   const handleReservationAction = async (reservation: ReservationRecord) => {
-    const isCancelled = reservation.status === 'cancelled';
-    const confirmed = window.confirm(
-      isCancelled
-        ? '¿Deseas eliminar permanentemente esta reservación?'
-        : '¿Deseas cancelar esta reservación?',
-    );
+    if (reservation.status !== 'reserved') return;
+    if (!window.confirm('¿Deseas cancelar esta reservación?')) return;
 
-    if (!confirmed) {
-      return;
-    }
-
-    setDeletingReservationId(reservation.reservation_id);
     setError('');
-
     try {
-      if (isCancelled) {
-        await deleteReservation(reservation.reservation_id);
-      } else {
-        await cancelReservation(reservation.reservation_id);
-      }
-
+      await cancelReservation(reservation.reservation_id);
       if (currentUserId) {
-        const updatedReservations = await getUserReservations(currentUserId);
-        setReservations(updatedReservations);
+        setReservations(await getUserReservations(currentUserId));
       }
-    } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'No fue posible completar la acción.');
-    } finally {
-      setDeletingReservationId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No fue posible cancelar la reservación.');
+    }
+  };
+
+  const handleEditSuccess = async () => {
+    if (!currentUserId) return;
+    try {
+      setReservations(await getUserReservations(currentUserId));
+    } catch {
+      // silent refresh failure
     }
   };
 
@@ -361,10 +475,13 @@ export default function ReservationHistory() {
         `${reservation.space?.code ?? ''} ${reservation.space?.zone?.name ?? ''} ${reservation.space?.space_type?.name ?? ''} ${reservation.incident_notes ?? ''}`
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
+      const matchesDate =
+        dateFilter.trim().length === 0 ||
+        format(new Date(reservation.start_time), 'yyyy-MM-dd') === dateFilter;
 
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesSearch && matchesDate;
     });
-  }, [reservations, searchTerm, statusFilter]);
+  }, [reservations, searchTerm, statusFilter, dateFilter]);
 
   const groupedReservations = useMemo(() => {
     if (!isAdmin) {
@@ -475,6 +592,38 @@ export default function ReservationHistory() {
         </div>
       ) : null}
 
+      {/* Filtro de día */}
+      <div className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <CalendarClock size={15} />
+          Filtrar por día
+        </div>
+        <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition focus-within:border-blue-500 dark:border-slate-700 dark:bg-slate-900">
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="bg-transparent text-sm text-slate-700 outline-none dark:text-slate-200"
+          />
+        </label>
+        {dateFilter ? (
+          <>
+            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+              {format(new Date(dateFilter + 'T00:00:00'), 'dd/MM/yyyy')}
+            </span>
+            <button
+              type="button"
+              onClick={() => setDateFilter('')}
+              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-700"
+            >
+              Quitar filtro
+            </button>
+          </>
+        ) : (
+          <span className="text-xs text-slate-400">Mostrando todos los días</span>
+        )}
+      </div>
+
       <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 lg:flex-row lg:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -520,8 +669,7 @@ export default function ReservationHistory() {
                 isExpanded={expandedGroups[group.key] ?? true}
                 onToggle={handleToggleGroup}
                 onAction={handleReservationAction}
-                onViewAvailability={handleViewAvailability}
-                deletingReservationId={deletingReservationId}
+                onEditSuccess={handleEditSuccess}
               />
             ))}
           </div>
@@ -532,8 +680,7 @@ export default function ReservationHistory() {
                 key={reservation.reservation_id}
                 reservation={reservation}
                 onAction={handleReservationAction}
-                onViewAvailability={handleViewAvailability}
-                deletingReservationId={deletingReservationId}
+                onEditSuccess={handleEditSuccess}
               />
             ))}
           </div>
@@ -544,7 +691,11 @@ export default function ReservationHistory() {
             <CheckCircle size={20} />
           </div>
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Sin resultados</h3>
-          <p className="mt-2 text-sm text-slate-500">Prueba con otro filtro o texto de búsqueda.</p>
+          <p className="mt-2 text-sm text-slate-500">
+            {dateFilter
+              ? `No hay reservaciones el ${format(new Date(dateFilter + 'T00:00:00'), 'dd/MM/yyyy')}. Prueba con otra fecha o quita el filtro.`
+              : 'Prueba con otro filtro o texto de búsqueda.'}
+          </p>
         </div>
       )}
     </div>

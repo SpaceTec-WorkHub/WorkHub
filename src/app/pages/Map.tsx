@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { getCurrentUserId } from '../../services/auth';
 import { getBuildings, getFloors, getSpaces, getZones, BuildingRecord, FloorRecord, ZoneRecord } from '../../services/hierarchy';
 import { ApiSpace } from '../../services/space';
-import { getReservationSpaces, getUserReservations, ReservationRecord } from '../../services/reservation';
+import { createReservation, getReservationSpaces, getUserReservations, ReservationRecord } from '../../services/reservation';
 import { BlockRecord, getBlocks } from '../../services/admin';
 
 type MapSpace = ApiSpace;
@@ -24,6 +24,7 @@ type MapZone = ZoneRecord & { spaces: MapSpace[] };
 type MapFloor = FloorRecord & { zones: MapZone[] };
 type MapBuilding = BuildingRecord & { floors: MapFloor[] };
 type Stage = 'building' | 'floor' | 'zone' | 'space';
+type InitStage = 'parking-prompt' | 'parking-select' | 'main';
 type SpaceKind = 'desk' | 'meeting' | 'parking' | 'other';
 type SpaceStatus = MapSpace['status'];
 
@@ -321,6 +322,23 @@ export default function MapView() {
   const [startTime, setStartTime] = useState(timeRange.startTime);
   const [endTime, setEndTime] = useState(timeRange.endTime);
   const [hiddenKinds, setHiddenKinds] = useState<Set<SpaceKind>>(new Set());
+  const [isGuestMode, setIsGuestMode] = useState(false);
+
+  // Parking pre-step state
+  const [initStage, setInitStage] = useState<InitStage>('parking-prompt');
+  const [parkingNavStage, setParkingNavStage] = useState<Stage>('building');
+  const [parkingBuildingId, setParkingBuildingId] = useState<number | null>(null);
+  const [parkingFloorId, setParkingFloorId] = useState<number | null>(null);
+  const [parkingZoneId, setParkingZoneId] = useState<number | null>(null);
+  const [selectedParkingSpaceId, setSelectedParkingSpaceId] = useState<number | null>(null);
+  const [parkingDate, setParkingDate] = useState(() => getTodayLocalDateString());
+  const [parkingStartTime, setParkingStartTime] = useState(timeRange.startTime);
+  const [parkingEndTime, setParkingEndTime] = useState(timeRange.endTime);
+  const [parkingAvailabilityById, setParkingAvailabilityById] = useState<Map<number, SpaceStatus>>(new Map());
+  const [parkingConflict, setParkingConflict] = useState(false);
+  const [loadingParkingAvailability, setLoadingParkingAvailability] = useState(false);
+  const [confirmingParking, setConfirmingParking] = useState(false);
+
   const currentUserId = useMemo(() => getCurrentUserId(), []);
   const activeReservationStatuses = useMemo(() => getActiveReservationStatuses(), []);
 
@@ -483,6 +501,36 @@ export default function MapView() {
     };
   }, [endTime, selectedDate, startTime, currentUserId, spaces]);
 
+  useEffect(() => {
+    if (initStage !== 'parking-select') return;
+    const range = getSelectedRange(parkingDate, parkingStartTime, parkingEndTime);
+    if (!range) { setParkingAvailabilityById(new Map()); setParkingConflict(false); return; }
+
+    let mounted = true;
+    setLoadingParkingAvailability(true);
+
+    Promise.all([
+      getReservationSpaces(parkingDate, parkingStartTime, parkingEndTime, currentUserId),
+      getReservationSpaces(parkingDate, parkingStartTime, parkingEndTime),
+    ])
+      .then(([availableForUser, availableAll]) => {
+        if (!mounted) return;
+        const next = new Map<number, SpaceStatus>();
+        for (const s of availableForUser) next.set(s.space_id, 'available');
+        setParkingAvailabilityById(next);
+
+        // Parking en conflicto directo si el servidor lo retira para este usuario
+        // pero existe disponibilidad general — distingue parking propio vs parking de invitado
+        const allHasParking = availableAll.some((s) => isParkingSpace(s));
+        const userHasParking = availableForUser.some((s) => isParkingSpace(s));
+        setParkingConflict(allHasParking && !userHasParking);
+      })
+      .catch(() => { if (mounted) { setParkingAvailabilityById(new Map()); setParkingConflict(false); } })
+      .finally(() => { if (mounted) setLoadingParkingAvailability(false); });
+
+    return () => { mounted = false; };
+  }, [initStage, parkingDate, parkingStartTime, parkingEndTime, currentUserId]);
+
   const tree = useMemo<MapBuilding[]>(() => {
     return [...buildings]
       .sort(compareByName)
@@ -503,6 +551,64 @@ export default function MapView() {
           })),
       }));
   }, [buildings, floors, spaces, zones]);
+
+  // Parking tree: same hierarchy but filtered to parking spaces only
+  const parkingTree = useMemo<MapBuilding[]>(() => {
+    return tree
+      .map((building) => ({
+        ...building,
+        floors: building.floors
+          .map((floor) => ({
+            ...floor,
+            zones: floor.zones
+              .map((zone) => ({
+                ...zone,
+                spaces: zone.spaces.filter(isParkingSpace),
+              }))
+              .filter((zone) => zone.spaces.length > 0),
+          }))
+          .filter((floor) => floor.zones.length > 0),
+      }))
+      .filter((building) => building.floors.length > 0);
+  }, [tree]);
+
+  const parkingSelectedBuilding = useMemo(
+    () => parkingTree.find((b) => b.building_id === parkingBuildingId) ?? null,
+    [parkingBuildingId, parkingTree],
+  );
+  const parkingSelectedFloor = useMemo(
+    () => parkingSelectedBuilding?.floors.find((f) => f.floor_id === parkingFloorId) ?? null,
+    [parkingSelectedBuilding, parkingFloorId],
+  );
+  const parkingSelectedZone = useMemo(
+    () => parkingSelectedFloor?.zones.find((z) => z.zone_id === parkingZoneId) ?? null,
+    [parkingSelectedFloor, parkingZoneId],
+  );
+  const selectedParkingSpace = useMemo(
+    () => spaces.find((s) => s.space_id === selectedParkingSpaceId) ?? null,
+    [selectedParkingSpaceId, spaces],
+  );
+
+  const parkingStatusById = useMemo(() => {
+    const map = new Map<number, SpaceStatus>();
+    const parkingRange = getSelectedRange(parkingDate, parkingStartTime, parkingEndTime);
+    for (const building of parkingTree) {
+      for (const floor of building.floors) {
+        for (const zone of floor.zones) {
+          for (const space of zone.spaces) {
+            if (space.status === 'maintenance' || space.status === 'blocked') {
+              map.set(space.space_id, space.status);
+            } else if (!parkingRange || loadingParkingAvailability) {
+              map.set(space.space_id, space.status);
+            } else {
+              map.set(space.space_id, parkingAvailabilityById.has(space.space_id) ? 'available' : 'occupied');
+            }
+          }
+        }
+      }
+    }
+    return map;
+  }, [loadingParkingAvailability, parkingAvailabilityById, parkingDate, parkingEndTime, parkingStartTime, parkingTree]);
 
   const selectedRange = useMemo(() => getSelectedRange(selectedDate, startTime, endTime), [endTime, selectedDate, startTime]);
   const availableSpaceIds = useMemo(() => new Set(availabilityById.keys()), [availabilityById]);
@@ -560,10 +666,12 @@ export default function MapView() {
     const slotEnd = buildLocalDateTime(new Date(selectedDate), endTime);
 
     return userReservations.filter((reservation) => {
-      if (!activeReservationStatuses.has(reservation.status)) {
-        return false;
-      }
-
+      if (!activeReservationStatuses.has(reservation.status)) return false;
+      // Las incidencias no bloquean: el usuario debe poder elegir un espacio alternativo del mismo tipo
+      if (reservation.status === 'incident') return false;
+      // Excluir reservas de invitado y sub-reservas de parking: no deben ocultar tipos propios
+      if (reservation.is_guest_reservation) return false;
+      if (reservation.parent_reservation_id != null) return false;
       return overlaps(slotStart, slotEnd, new Date(reservation.start_time), getReservationEffectiveEnd(reservation));
     });
   }, [activeReservationStatuses, endTime, selectedDate, startTime, userReservations]);
@@ -590,7 +698,12 @@ export default function MapView() {
             zones: floor.zones
               .map((zone) => ({
                 ...zone,
-                spaces: zone.spaces.filter((space) => !hiddenTypes.has(getSpaceKind(space))),
+                spaces: zone.spaces.filter((space) => {
+                  if (isParkingSpace(space)) return false;
+                  // En modo invitado se muestran todos los tipos aunque el usuario ya tenga uno reservado
+                  if (isGuestMode) return true;
+                  return !hiddenTypes.has(getSpaceKind(space));
+                }),
               }))
               .filter((zone) => zone.spaces.length > 0),
           }))
@@ -685,10 +798,7 @@ export default function MapView() {
   };
 
   const handleReserve = () => {
-    if (!selectedSpace) {
-      return;
-    }
-
+    if (!selectedSpace) return;
     navigate('/reservation', {
       state: {
         date: selectedDate,
@@ -696,8 +806,33 @@ export default function MapView() {
         endTime,
         spaceId: selectedSpace.space_id,
         spaceCode: selectedSpace.code,
+        isGuestReservation: isGuestMode,
       },
     });
+  };
+
+  const handleConfirmParking = async () => {
+    if (!selectedParkingSpaceId) {
+      setInitStage('main');
+      return;
+    }
+    const parkingLocalDate = parseLocalDateString(parkingDate);
+    if (!parkingLocalDate) { setInitStage('main'); return; }
+
+    setConfirmingParking(true);
+    try {
+      await createReservation({
+        start_time: buildLocalDateTime(parkingLocalDate, parkingStartTime).toISOString(),
+        end_time: buildLocalDateTime(parkingLocalDate, parkingEndTime).toISOString(),
+        space_id: selectedParkingSpaceId,
+      });
+      toast.success(`Estacionamiento ${selectedParkingSpace?.code ?? ''} reservado correctamente.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No fue posible reservar el estacionamiento.');
+    } finally {
+      setConfirmingParking(false);
+      setInitStage('main');
+    }
   };
 
   const breadcrumbItems = [
@@ -707,9 +842,10 @@ export default function MapView() {
     ...(selectedZone ? [{ label: `Zona ${selectedZone.name}`, active: stage === 'space' }] : []),
   ];
 
-  const hiddenTypesMessage = hiddenTypes.size > 0
-    ? `No se muestran cards de ${Array.from(hiddenTypes)
-        .map((kind) => (kind === 'parking' ? 'Parking' : kind === 'meeting' ? 'Meeting Room' : 'Desk'))
+  const nonParkingHiddenTypes = useMemo(() => new Set([...hiddenTypes].filter((k) => k !== 'parking')), [hiddenTypes]);
+  const hiddenTypesMessage = nonParkingHiddenTypes.size > 0
+    ? `No se muestran cards de ${Array.from(nonParkingHiddenTypes)
+        .map((kind) => (kind === 'meeting' ? 'Meeting Room' : 'Desk'))
         .join(', ')} porque ya tienes una reserva activa de ese mismo tipo en este horario.`
     : '';
 
@@ -750,12 +886,327 @@ export default function MapView() {
     setSelectedSpace(null);
   };
 
+  // ── Pantalla 1: Pregunta de estacionamiento ──────────────────────────────
+  if (initStage === 'parking-prompt') {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center py-8">
+        <div className="w-[min(96vw,460px)] space-y-6 rounded-3xl border border-slate-200 bg-white p-8 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="rounded-3xl bg-amber-100 p-5 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
+              <Car size={36} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">¿Necesitas estacionamiento?</h1>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Reserva un espacio de estacionamiento antes de elegir tu área de trabajo. Puedes omitirlo si llegas caminando o en transporte.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => { setInitStage('parking-select'); setParkingNavStage('building'); }}
+              className="w-full rounded-2xl bg-amber-500 px-4 py-4 text-base font-semibold text-white shadow-md shadow-amber-500/20 transition hover:bg-amber-600"
+            >
+              Sí, quiero reservar estacionamiento
+            </button>
+            <button
+              type="button"
+              onClick={() => setInitStage('main')}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-4 text-base font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              No, continuar sin estacionamiento
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return <div className="rounded-3xl border border-slate-200 bg-white p-8 text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900">Cargando mapa...</div>;
   }
 
   if (error) {
     return <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700 shadow-sm">{error}</div>;
+  }
+
+  // ── Pantalla 2: Selección de estacionamiento ──────────────────────────────
+  if (initStage === 'parking-select') {
+    const parkingNodeCard = 'group rounded-3xl border border-amber-200 bg-amber-50 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-amber-900/30 dark:bg-amber-950/20';
+    const getParkingNodeStats = (ss: MapSpace[]) =>
+      ss.reduce((acc, s) => { acc[parkingStatusById.get(s.space_id) ?? s.status] += 1; return acc; }, { available: 0, occupied: 0, maintenance: 0, blocked: 0 });
+
+    return (
+      <div className="space-y-5 pb-28">
+        {/* Cabecera + selectores de horario */}
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                <Car size={13} />
+                Reserva de estacionamiento
+              </div>
+              <h1 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">Elige tu espacio de parking</h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Selecciona el horario y el espacio que necesites.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setInitStage('main')}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Omitir estacionamiento
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-amber-500 dark:border-slate-700 dark:bg-slate-950/40">
+              <Clock size={18} className="text-slate-400" />
+              <span className="w-14 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Fecha</span>
+              <input
+                type="date"
+                value={parkingDate}
+                min={getTodayLocalDateString()}
+                onChange={(e) => { setParkingDate(e.target.value); setSelectedParkingSpaceId(null); }}
+                className="w-full bg-transparent outline-none"
+              />
+            </label>
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-amber-500 dark:border-slate-700 dark:bg-slate-950/40">
+              <Clock size={18} className="text-slate-400" />
+              <span className="w-14 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Inicio</span>
+              <input
+                type="time"
+                value={parkingStartTime}
+                onChange={(e) => { setParkingStartTime(e.target.value); setSelectedParkingSpaceId(null); }}
+                className="w-full bg-transparent outline-none"
+              />
+            </label>
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-amber-500 dark:border-slate-700 dark:bg-slate-950/40">
+              <Clock size={18} className="text-slate-400" />
+              <span className="w-14 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Fin</span>
+              <input
+                type="time"
+                value={parkingEndTime}
+                onChange={(e) => { setParkingEndTime(e.target.value); setSelectedParkingSpaceId(null); }}
+                className="w-full bg-transparent outline-none"
+              />
+            </label>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:border-slate-800 dark:bg-slate-950/40">
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-400" /> Libre</span>
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-400" /> Ocupado</span>
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-amber-400" /> Mantenimiento</span>
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-slate-400" /> Bloqueado</span>
+            {loadingParkingAvailability && <span className="ml-auto normal-case tracking-normal text-slate-400">Actualizando disponibilidad...</span>}
+          </div>
+        </div>
+
+        {/* Mini-mapa de parking */}
+        <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                {parkingNavStage === 'building' ? 'Edificios' : parkingNavStage === 'floor' ? 'Pisos' : parkingNavStage === 'zone' ? 'Zonas' : 'Espacios'}
+              </h2>
+              <p className="text-sm text-slate-500">
+                {parkingNavStage === 'building' ? 'Selecciona un edificio con estacionamiento.'
+                  : parkingNavStage === 'floor' ? 'Selecciona el piso de estacionamiento.'
+                  : parkingNavStage === 'zone' ? 'Selecciona una zona del estacionamiento.'
+                  : 'Elige el espacio de parking que prefieras.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={parkingNavStage === 'building'}
+              onClick={() => {
+                if (parkingNavStage === 'space') { setParkingNavStage('zone'); setParkingZoneId(null); }
+                else if (parkingNavStage === 'zone') { setParkingNavStage('floor'); setParkingFloorId(null); }
+                else if (parkingNavStage === 'floor') { setParkingNavStage('building'); setParkingBuildingId(null); }
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <ChevronLeft size={16} />
+              Volver
+            </button>
+          </div>
+
+          {/* Breadcrumb */}
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:border-slate-800 dark:bg-slate-950/40">
+            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'building' ? 'bg-amber-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Edificios</span>
+            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'floor' ? 'bg-amber-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Pisos</span>
+            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'zone' ? 'bg-amber-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Zonas</span>
+            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'space' ? 'bg-amber-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Espacios</span>
+          </div>
+
+          {/* Aviso de conflicto: ya tienes parking propio en ese horario */}
+          {parkingConflict ? (
+            <div className="rounded-[2rem] border-2 border-amber-300 bg-gradient-to-r from-amber-100 via-orange-50 to-amber-100 px-5 py-4 text-amber-950 shadow-lg shadow-amber-500/10 ring-1 ring-amber-200/70 dark:border-amber-800 dark:from-amber-950/60 dark:via-slate-900 dark:to-amber-950/60 dark:text-amber-50 dark:ring-amber-900/40">
+              <div className="flex items-start gap-4">
+                <div className="rounded-2xl bg-amber-200 p-3 text-amber-800 shadow-sm dark:bg-amber-900/50 dark:text-amber-100">
+                  <AlertTriangle size={24} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] font-black uppercase tracking-[0.25em] text-amber-700 dark:text-amber-200">
+                    Ya tienes estacionamiento reservado
+                  </p>
+                  <p className="mt-1 text-[15px] font-bold leading-6 text-amber-950 dark:text-white">
+                    Ya existe una reserva de estacionamiento propia que se traslapa con el horario seleccionado.
+                  </p>
+                  <p className="mt-1 text-[13px] leading-5 text-amber-800 dark:text-amber-100">
+                    Cambia la fecha u horario para poder reservar otro espacio de parking.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Contenido por etapa */}
+          {parkingConflict ? null : parkingNavStage === 'building' ? (
+            parkingTree.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/40">
+                No hay edificios con estacionamiento disponibles.
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {parkingTree.map((building) => {
+                  const allSpcs = building.floors.flatMap((f) => f.zones.flatMap((z) => z.spaces));
+                  const stats = getParkingNodeStats(allSpcs);
+                  return (
+                    <HierarchyCard
+                      key={building.building_id}
+                      icon={<Building2 size={18} />}
+                      title={building.name}
+                      subtitle={`${building.floors.length} piso(s) de parking`}
+                      stats={stats}
+                      accent={getNodeTone(stats)}
+                      onClick={() => { setParkingBuildingId(building.building_id); setParkingFloorId(building.floors[0]?.floor_id ?? null); setParkingZoneId(building.floors[0]?.zones[0]?.zone_id ?? null); setParkingNavStage('floor'); }}
+                    />
+                  );
+                })}
+              </div>
+            )
+          ) : parkingNavStage === 'floor' && parkingSelectedBuilding ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {parkingSelectedBuilding.floors.map((floor) => {
+                const allSpcs = floor.zones.flatMap((z) => z.spaces);
+                const stats = getParkingNodeStats(allSpcs);
+                return (
+                  <HierarchyCard
+                    key={floor.floor_id}
+                    icon={<Car size={18} />}
+                    title={`Piso ${floor.name}`}
+                    subtitle={`${floor.zones.length} zona(s)`}
+                    stats={stats}
+                    accent={getNodeTone(stats)}
+                    onClick={() => { setParkingFloorId(floor.floor_id); setParkingZoneId(floor.zones[0]?.zone_id ?? null); setParkingNavStage('zone'); }}
+                  />
+                );
+              })}
+            </div>
+          ) : parkingNavStage === 'zone' && parkingSelectedFloor ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {parkingSelectedFloor.zones.map((zone) => {
+                const stats = getParkingNodeStats(zone.spaces);
+                return (
+                  <HierarchyCard
+                    key={zone.zone_id}
+                    icon={<Layers3 size={18} />}
+                    title={`Zona ${zone.name}`}
+                    subtitle={`${zone.spaces.length} espacio(s)`}
+                    stats={stats}
+                    accent={getNodeTone(stats)}
+                    onClick={() => { setParkingZoneId(zone.zone_id); setParkingNavStage('space'); }}
+                  />
+                );
+              })}
+            </div>
+          ) : parkingNavStage === 'space' && parkingSelectedZone ? (
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-inner dark:border-slate-800 dark:bg-slate-950/30">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Zona seleccionada</p>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">Zona {parkingSelectedZone.name}</h3>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                  <Car size={14} />
+                  Estacionamiento
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 p-2">
+                {parkingSelectedZone.spaces.map((space) => {
+                  const effectiveStatus = parkingStatusById.get(space.space_id) ?? space.status;
+                  const isSelected = selectedParkingSpaceId === space.space_id;
+                  return (
+                    <button
+                      key={space.space_id}
+                      type="button"
+                      onClick={() => setSelectedParkingSpaceId(isSelected ? null : space.space_id)}
+                      className={`group relative h-24 rounded-2xl border text-center shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-xl ${statusTone[effectiveStatus]} ${isSelected ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-slate-50 dark:ring-offset-slate-950' : ''}`}
+                    >
+                      <div className="flex h-full items-center justify-center px-2">
+                        <div className="space-y-1">
+                          <span className="inline-flex items-center rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600 dark:bg-slate-900/80 dark:text-slate-300">
+                            Parking
+                          </span>
+                          <span className="block text-sm font-semibold leading-tight">{space.code}</span>
+                          <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] opacity-70">{statusLabel[effectiveStatus]}</span>
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white shadow-md">✓</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/40">
+              Selecciona un edificio para comenzar.
+            </div>
+          )}
+        </div>
+
+        {/* Barra inferior de confirmación */}
+        <div className="fixed bottom-4 left-4 right-4 z-40">
+          <div className="mx-auto flex max-w-3xl flex-col gap-4 rounded-2xl bg-slate-950 px-4 py-3.5 text-white shadow-2xl shadow-slate-950/30 ring-1 ring-white/10 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="rounded-2xl bg-white/10 p-2.5 text-amber-400">
+                <Car size={22} />
+              </div>
+              <div>
+                <p className="text-base font-bold leading-none">
+                  {selectedParkingSpace ? selectedParkingSpace.code : 'Sin espacio seleccionado'}
+                </p>
+                <p className="mt-1 text-sm text-slate-300">
+                  {selectedParkingSpace
+                    ? `${parkingDate} · ${parkingStartTime} - ${parkingEndTime}`
+                    : 'Navega el mapa y elige un espacio de parking'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setInitStage('main')}
+                className="rounded-2xl border border-white/20 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Omitir
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmParking}
+                disabled={confirmingParking}
+                className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-amber-900/20 transition hover:bg-amber-400 disabled:opacity-60"
+              >
+                {confirmingParking ? 'Reservando...' : selectedParkingSpace ? 'Confirmar estacionamiento' : 'Continuar sin parking'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -788,6 +1239,18 @@ export default function MapView() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Botón para volver a elegir estacionamiento */}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => { setInitStage('parking-select'); setParkingNavStage('building'); setParkingBuildingId(null); setParkingFloorId(null); setParkingZoneId(null); setSelectedParkingSpaceId(null); }}
+          className="inline-flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50"
+        >
+          <Car size={16} />
+          Elegir estacionamiento
+        </button>
       </div>
 
       {hiddenTypesMessage ? (
@@ -865,7 +1328,25 @@ export default function MapView() {
           <span className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-900/30 dark:text-violet-200">Meeting Room</span>
           <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">Parking</span>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700 dark:bg-slate-800 dark:text-slate-200">Espacio</span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="normal-case tracking-normal text-slate-400">
+              {isGuestMode ? 'Modo invitado activo' : 'Reservando para mí'}
+            </span>
+            <button
+              type="button"
+              onClick={() => { setIsGuestMode((v) => !v); setSelectedSpace(null); }}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isGuestMode ? 'bg-violet-600' : 'bg-slate-300 dark:bg-slate-600'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isGuestMode ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
         </div>
+
+        {isGuestMode ? (
+          <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-300">
+            <span className="font-semibold">Modo invitado:</span> se muestran todos los espacios aunque ya tengas uno reservado en este horario. El espacio que elijas se reservará para tu invitado.
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -1099,9 +1580,9 @@ export default function MapView() {
             <button
               type="button"
               onClick={handleReserve}
-              className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition ${isGuestMode ? 'bg-violet-600 hover:bg-violet-700' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
-              Reservar
+              {isGuestMode ? 'Reservar para invitado' : 'Reservar'}
             </button>
             <button
               type="button"

@@ -27,6 +27,9 @@ export type ReservationRecord = {
   user_id: number;
   space_id: number;
   space: ReservationSpace;
+  parent_reservation_id?: number | null;
+  is_guest_reservation?: boolean;
+  guests?: { guest_id: number; name: string; email?: string | null }[];
   event_id?: number | null;
   event?: {
     event_id: number;
@@ -73,6 +76,12 @@ export type CheckInLocation = {
   longitude: number;
 };
 
+export type EventCheckInResponse = {
+  event_id: number;
+  checked_in_count: number;
+  reservations: ReservationRecord[];
+};
+
 function getCurrentSessionUser() {
   const session = getStoredSession();
   const user = session?.user as { user_id?: number } | undefined;
@@ -103,6 +112,9 @@ export type ReservationPayload = {
   space_id: number;
   code?: string;
   event_id?: number;
+  extra_parking_space_ids?: number[];
+  guests?: { name: string; email?: string; extra_parking_space_id?: number }[];
+  is_guest_reservation?: boolean;
 };
 
 function generateReservationCode() {
@@ -172,6 +184,9 @@ export async function createReservation(payload: Omit<ReservationPayload, 'user_
             user_id: userId,
             space_id: payload.space_id,
             ...(payload.event_id ? { event_id: payload.event_id } : {}),
+            ...(payload.extra_parking_space_ids ? { extra_parking_space_ids: payload.extra_parking_space_ids } : {}),
+            ...(payload.guests ? { guests: payload.guests } : {}),
+            ...(payload.is_guest_reservation ? { is_guest_reservation: true } : {}),
           }),
         });
       } catch (err: any) {
@@ -240,6 +255,27 @@ export async function checkInReservation(
   }
 
   return apiRequest<ReservationRecord>(`/reservation/${reservationId}/check-in`, {
+    method: 'POST',
+    body: JSON.stringify({
+      user_id: userId,
+      is_admin: isAdmin,
+      latitude: location?.latitude,
+      longitude: location?.longitude,
+    }),
+  });
+}
+
+export async function checkInEventReservation(
+  reservationId: number,
+  location?: CheckInLocation,
+) {
+  const { userId, isAdmin } = getCurrentSessionUser();
+
+  if (!userId) {
+    throw new Error('No se encontró la sesión del usuario.');
+  }
+
+  return apiRequest<EventCheckInResponse>(`/reservation/${reservationId}/check-in-event`, {
     method: 'POST',
     body: JSON.stringify({
       user_id: userId,
