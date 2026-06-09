@@ -1,20 +1,20 @@
-import React from 'react';
-import { NavLink, useNavigate } from 'react-router';
-import { 
-  LayoutDashboard, 
-  Map as MapIcon, 
-  CalendarCheck, 
+import { Link, NavLink, useNavigate } from 'react-router';
+import {
+  LayoutDashboard,
+  Map as MapIcon,
+  CalendarCheck,
   History,
-  CheckCircle, 
-  Settings, 
-  Trophy, 
-  Car, 
+  CheckCircle,
+  Settings,
+  Trophy,
+  Car,
   LogOut,
   User
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { clsx } from 'clsx';
 import { clearSession, getStoredSession } from '../../services/auth';
+import logo from '../assets/logo.png';
 
 type SidebarUser = {
   full_name?: string | null;
@@ -44,42 +44,50 @@ export default function Sidebar() {
   const displayRole = roleName === 'admin' ? 'admin' : 'user';
 
   return (
-    <div className="w-64 h-screen bg-white border-r border-slate-200 flex flex-col shadow-sm fixed left-0 top-0 z-10">
-      <div className="p-6 border-b border-slate-100 flex items-center gap-2">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-lg">W</span>
+    <div className="w-64 h-screen bg-purple-900 flex flex-col shadow-xl fixed left-0 top-0 z-10">
+      {/* Logo — click goes to dashboard */}
+      <Link
+        to="/"
+        className="p-5 border-b border-purple-800 flex items-center gap-3 hover:bg-white/5 transition-colors"
+      >
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-200/20 shrink-0 p-1">
+          <img src={logo} alt="Accenture" className="h-full w-full object-contain" />
         </div>
-        <span className="text-xl font-bold text-slate-800 tracking-tight">WorkHub MTY</span>
-      </div>
+        <div>
+          <span className="text-white font-bold text-base tracking-tight leading-none">WorkHub</span>
+          <span className="block text-purple-300 text-[10px] font-semibold uppercase tracking-widest mt-0.5">Accenture</span>
+        </div>
+      </Link>
 
-      <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto py-5 px-3 space-y-0.5">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
               clsx(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group",
+                'relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group',
                 isActive
-                  ? "bg-blue-50 text-blue-700 font-medium shadow-sm"
-                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                  ? 'bg-white/10 text-white font-medium'
+                  : 'text-purple-200 hover:bg-white/5 hover:text-white',
               )
             }
           >
             {({ isActive }) => (
               <>
                 <item.icon
-                  size={20}
+                  size={18}
                   className={clsx(
-                    "transition-colors",
-                    isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
+                    'transition-colors shrink-0',
+                    isActive ? 'text-white' : 'text-purple-400 group-hover:text-purple-200',
                   )}
                 />
-                <span>{item.label}</span>
+                <span className="text-sm">{item.label}</span>
                 {isActive && (
                   <motion.div
                     layoutId="active-pill"
-                    className="absolute left-0 w-1 h-8 bg-blue-600 rounded-r-full"
+                    className="absolute left-0 w-0.5 h-6 bg-white rounded-r-full"
                   />
                 )}
               </>
@@ -88,18 +96,19 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-100">
+      {/* User section */}
+      <div className="p-4 border-t border-purple-800">
         <button
           type="button"
           onClick={() => navigate('/profile')}
-          className="flex items-center gap-3 mb-4 px-2 py-2 rounded-xl hover:bg-slate-100 transition-colors w-full text-left"
+          className="flex items-center gap-3 mb-3 px-2 py-2 rounded-xl hover:bg-white/5 transition-colors w-full text-left"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-slate-500 shadow-sm">
-            <User size={20} />
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-700 text-purple-200 shrink-0">
+            <User size={18} />
           </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-800">{displayName}</p>
-            <p className="text-xs text-slate-500">{displayRole}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white truncate">{displayName}</p>
+            <p className="text-xs text-purple-400">{displayRole}</p>
           </div>
         </button>
 
@@ -108,9 +117,9 @@ export default function Sidebar() {
             clearSession();
             navigate('/login');
           }}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-rose-300 bg-rose-900/20 hover:bg-rose-900/40 rounded-lg transition-colors"
         >
-          <LogOut size={16} />
+          <LogOut size={15} />
           <span>Cerrar Sesión</span>
         </button>
       </div>

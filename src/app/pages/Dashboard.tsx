@@ -76,7 +76,7 @@ const StatCard = ({ title, value, subtext, icon: Icon, colorClass, trend }: any)
 
 const RecommendationCard = ({ title, desc, time, type }: any) => (
   <div className="flex items-start gap-4 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors">
-    <div className={`p-2 rounded-full ${type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+    <div className={`p-2 rounded-full ${type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-purple-100 text-purple-600'}`}>
       {type === 'warning' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
     </div>
     <div>
@@ -184,7 +184,7 @@ export default function Dashboard() {
           value={loadingChart ? '…' : stats.activeCount}
           subtext="Reservadas, en curso o pendientes"
           icon={Users}
-          colorClass="bg-blue-500 text-blue-600"
+          colorClass="bg-purple-500 text-purple-600"
         />
         <StatCard
           title="Reservas esta semana"
@@ -198,7 +198,7 @@ export default function Dashboard() {
           value={loadingChart ? '…' : stats.completedCount}
           subtext="Total historial con check-out"
           icon={CheckCircle2}
-          colorClass="bg-indigo-500 text-indigo-600"
+          colorClass="bg-purple-500 text-purple-600"
         />
         <StatCard
           title="Próxima reserva"

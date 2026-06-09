@@ -68,7 +68,7 @@ export default function Gamification() {
       <motion.div
         initial={{ scale: 0.96, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-900 p-8 text-white shadow-2xl"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-purple-950 to-purple-900 p-8 text-white shadow-2xl"
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.35),transparent_30%)]" />
         <div className="relative z-10 flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
@@ -78,7 +78,7 @@ export default function Gamification() {
             </div>
             <div>
               <h2 className="text-4xl font-bold">{currentUser?.points?.toLocaleString() ?? '0'}</h2>
-              <p className="font-medium text-blue-100">Tus puntos esta quincena</p>
+              <p className="font-medium text-purple-100">Tus puntos esta quincena</p>
               <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs">
                 <TrendingUp size={12} /> Posición #{currentUser?.rank ?? '-'} de {summary.leaderboard.length}
               </div>
@@ -87,15 +87,15 @@ export default function Gamification() {
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-              <p className="text-xs uppercase tracking-wide text-blue-100">Reservas</p>
+              <p className="text-xs uppercase tracking-wide text-purple-100">Reservas</p>
               <p className="mt-2 text-2xl font-bold">{currentUser?.reservations ?? 0}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-              <p className="text-xs uppercase tracking-wide text-blue-100">Check-ins</p>
+              <p className="text-xs uppercase tracking-wide text-purple-100">Check-ins</p>
               <p className="mt-2 text-2xl font-bold">{currentUser?.checkIns ?? 0}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-              <p className="text-xs uppercase tracking-wide text-blue-100">Premios</p>
+              <p className="text-xs uppercase tracking-wide text-purple-100">Premios</p>
               <p className="mt-2 text-2xl font-bold">{summary.rewards.length}</p>
             </div>
           </div>
@@ -136,14 +136,14 @@ export default function Gamification() {
                     className={clsx(
                       'transition-colors',
                       isCurrentUser
-                        ? 'bg-blue-50/80 ring-1 ring-inset ring-blue-200 dark:bg-blue-950/40 dark:ring-blue-800'
+                        ? 'bg-purple-50/80 ring-1 ring-inset ring-purple-200 dark:bg-purple-950/40 dark:ring-purple-800'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-900/40',
                     )}
                   >
                     <td className="px-6 py-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{row.rank}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className={clsx('flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold', isCurrentUser ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200')}>
+                        <div className={clsx('flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold', isCurrentUser ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200')}>
                           {(row.full_name ?? row.email ?? 'U').slice(0, 1).toUpperCase()}
                         </div>
                         <div>

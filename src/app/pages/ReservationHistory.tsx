@@ -18,6 +18,8 @@ import {
 import { useNavigate } from 'react-router';
 import { getCurrentUserId, isAdminUser } from '../../services/auth';
 import { cancelReservation, getUserReservations, updateReservation, ReservationRecord } from '../../services/reservation';
+import { useToast } from '../components/feedback/ToastProvider';
+import { useConfirm } from '../components/feedback/ConfirmProvider';
 
 const statusLabels: Record<ReservationRecord['status'], string> = {
   reserved: 'Reservada',
@@ -89,48 +91,43 @@ function ReservationCard({
   onAction: (reservation: ReservationRecord) => void;
   onEditSuccess: () => void;
 }) {
+  const toast = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editDate, setEditDate] = useState(() => isoToDate(reservation.start_time));
   const [editStart, setEditStart] = useState(() => isoToTime(reservation.start_time));
   const [editEnd, setEditEnd] = useState(() => isoToTime(reservation.end_time));
   const [editLoading, setEditLoading] = useState(false);
-  const [editError, setEditError] = useState('');
-  const [editSuccess, setEditSuccess] = useState('');
 
   const handleOpenEdit = () => {
     setEditDate(isoToDate(reservation.start_time));
     setEditStart(isoToTime(reservation.start_time));
     setEditEnd(isoToTime(reservation.end_time));
-    setEditError('');
-    setEditSuccess('');
     setIsEditing(true);
   };
 
   const handleSaveEdit = async () => {
-    setEditError('');
-    setEditSuccess('');
     if (!editDate || !editStart || !editEnd) {
-      setEditError('Completa todos los campos de horario.');
+      toast.error('Completa todos los campos de horario.');
       return;
     }
     const newStart = buildIso(editDate, editStart);
     const newEnd = buildIso(editDate, editEnd);
     if (new Date(newEnd) <= new Date(newStart)) {
-      setEditError('La hora de fin debe ser posterior a la hora de inicio.');
+      toast.error('La hora de fin debe ser posterior a la hora de inicio.');
       return;
     }
     if (new Date(newEnd) <= new Date()) {
-      setEditError('El horario seleccionado ya terminó.');
+      toast.error('El horario seleccionado ya terminó.');
       return;
     }
     setEditLoading(true);
     try {
       await updateReservation(reservation.reservation_id, { start_time: newStart, end_time: newEnd });
-      setEditSuccess('Horario actualizado correctamente.');
+      toast.success('Horario actualizado correctamente.');
       setIsEditing(false);
       onEditSuccess();
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'El horario no está disponible o es inválido.');
+      toast.error(err instanceof Error ? err.message : 'El horario no está disponible o es inválido.');
     } finally {
       setEditLoading(false);
     }
@@ -184,13 +181,13 @@ function ReservationCard({
               {reservation.space?.zone?.name ?? 'Sin zona'}
             </span>
             {reservation.event ? (
-              <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200">
+              <span className="inline-flex items-center gap-2 rounded-full bg-purple-100 px-3 py-1 text-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
                 <CalendarClock size={14} />
                 {reservation.event.title}
               </span>
             ) : null}
             {reservation.reassigned_space_id ? (
-              <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-blue-700">
+              <span className="inline-flex items-center gap-2 rounded-full bg-purple-100 px-3 py-1 text-purple-700">
                 <RotateCcw size={14} />
                 Reasignado a espacio #{reservation.reassigned_space_id}
               </span>
@@ -263,7 +260,7 @@ function ReservationCard({
                     value={editDate}
                     min={todayStr()}
                     onChange={(e) => setEditDate(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-purple-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -272,7 +269,7 @@ function ReservationCard({
                     type="time"
                     value={editStart}
                     onChange={(e) => setEditStart(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-purple-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -281,22 +278,16 @@ function ReservationCard({
                     type="time"
                     value={editEnd}
                     onChange={(e) => setEditEnd(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-purple-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   />
                 </label>
               </div>
-              {editError ? (
-                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{editError}</p>
-              ) : null}
-              {editSuccess ? (
-                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{editSuccess}</p>
-              ) : null}
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={handleSaveEdit}
                   disabled={editLoading}
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {editLoading ? 'Guardando...' : 'Guardar cambios'}
                 </button>
@@ -369,7 +360,7 @@ function AdminEventGroupCard({
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+          <div className="rounded-full bg-purple-100 px-3 py-1 text-sm font-semibold text-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
             {group.reservations.length} reservación{group.reservations.length === 1 ? '' : 'es'}
           </div>
           <div className={[
@@ -409,6 +400,8 @@ export default function ReservationHistory() {
   const [dateFilter, setDateFilter] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const isAdmin = useMemo(() => isAdminUser(), []);
+  const toast = useToast();
+  const { confirm } = useConfirm();
 
   const currentUserId = useMemo(() => getCurrentUserId(), []);
 
@@ -433,16 +426,22 @@ export default function ReservationHistory() {
 
   const handleReservationAction = async (reservation: ReservationRecord) => {
     if (reservation.status !== 'reserved') return;
-    if (!window.confirm('¿Deseas cancelar esta reservación?')) return;
+    const confirmed = await confirm({
+      title: 'Cancelar reservación',
+      description: '¿Deseas cancelar esta reservación? Esta acción no se puede deshacer.',
+      confirmLabel: 'Sí, cancelar',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
 
-    setError('');
     try {
       await cancelReservation(reservation.reservation_id);
+      toast.success('La reservación fue cancelada correctamente.');
       if (currentUserId) {
         setReservations(await getUserReservations(currentUserId));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No fue posible cancelar la reservación.');
+      toast.error(err instanceof Error ? err.message : 'No fue posible cancelar la reservación.');
     }
   };
 
@@ -598,7 +597,7 @@ export default function ReservationHistory() {
           <CalendarClock size={15} />
           Filtrar por día
         </div>
-        <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition focus-within:border-blue-500 dark:border-slate-700 dark:bg-slate-900">
+        <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition focus-within:border-purple-500 dark:border-slate-700 dark:bg-slate-900">
           <input
             type="date"
             value={dateFilter}
@@ -608,7 +607,7 @@ export default function ReservationHistory() {
         </label>
         {dateFilter ? (
           <>
-            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+            <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
               {format(new Date(dateFilter + 'T00:00:00'), 'dd/MM/yyyy')}
             </span>
             <button
@@ -632,7 +631,7 @@ export default function ReservationHistory() {
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             placeholder="Buscar por espacio, zona o incidencia"
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 outline-none focus:border-purple-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
           />
         </div>
 
@@ -644,7 +643,7 @@ export default function ReservationHistory() {
               className={[
                 'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
                 statusFilter === status
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-purple-600 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600',
               ].join(' ')}
             >

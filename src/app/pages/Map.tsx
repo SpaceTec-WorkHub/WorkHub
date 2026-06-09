@@ -12,8 +12,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { toast } from 'sonner';
 import { getCurrentUserId } from '../../services/auth';
+import { useToast } from '../components/feedback/ToastProvider';
 import { getBuildings, getFloors, getSpaces, getZones, BuildingRecord, FloorRecord, ZoneRecord } from '../../services/hierarchy';
 import { ApiSpace } from '../../services/space';
 import { createReservation, getReservationSpaces, getUserReservations, ReservationRecord } from '../../services/reservation';
@@ -50,7 +50,7 @@ const statusLabel: Record<SpaceStatus, string> = {
 const statusTone: Record<SpaceStatus, string> = {
   available: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300 hover:bg-emerald-100 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-900/10 cursor-pointer',
   occupied: 'border-red-200 bg-red-50 text-red-700 cursor-not-allowed opacity-80',
-  maintenance: 'border-amber-200 bg-amber-50 text-amber-700 cursor-not-allowed opacity-80',
+  maintenance: 'border-purple-200 bg-purple-50 text-purple-700 cursor-not-allowed opacity-80',
   blocked: 'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed opacity-70',
 };
 
@@ -282,7 +282,7 @@ function HierarchyCard({
       className={`group rounded-3xl border bg-white p-4 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-xl dark:bg-slate-900 ${statusTone[accent]}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className={`rounded-2xl p-3 transition-transform duration-200 group-hover:scale-105 ${accent === 'available' ? 'bg-emerald-100 text-emerald-700' : accent === 'occupied' ? 'bg-red-100 text-red-700' : accent === 'maintenance' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
+        <div className={`rounded-2xl p-3 transition-transform duration-200 group-hover:scale-105 ${accent === 'available' ? 'bg-emerald-100 text-emerald-700' : accent === 'occupied' ? 'bg-red-100 text-red-700' : accent === 'maintenance' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
           {icon}
         </div>
         <ChevronRight size={18} className="mt-1 text-slate-300 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-slate-500" />
@@ -292,7 +292,7 @@ function HierarchyCard({
       <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wider">
         <span className="rounded-full bg-white/80 px-2.5 py-1 text-emerald-700 dark:bg-slate-950/70">{stats.available} libres</span>
         <span className="rounded-full bg-white/80 px-2.5 py-1 text-red-700 dark:bg-slate-950/70">{stats.occupied} ocupados</span>
-        <span className="rounded-full bg-white/80 px-2.5 py-1 text-amber-700 dark:bg-slate-950/70">{stats.maintenance} mant.</span>
+        <span className="rounded-full bg-white/80 px-2.5 py-1 text-purple-700 dark:bg-slate-950/70">{stats.maintenance} mant.</span>
         <span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-600 dark:bg-slate-950/70">{stats.blocked} bloqueados</span>
       </div>
     </button>
@@ -301,6 +301,7 @@ function HierarchyCard({
 
 export default function MapView() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [buildings, setBuildings] = useState<BuildingRecord[]>([]);
   const [floors, setFloors] = useState<FloorRecord[]>([]);
   const [zones, setZones] = useState<ZoneRecord[]>([]);
@@ -892,7 +893,7 @@ export default function MapView() {
       <div className="flex min-h-[60vh] items-center justify-center py-8">
         <div className="w-[min(96vw,460px)] space-y-6 rounded-3xl border border-slate-200 bg-white p-8 shadow-xl dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-col items-center gap-4 text-center">
-            <div className="rounded-3xl bg-amber-100 p-5 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
+            <div className="rounded-3xl bg-purple-100 p-5 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300">
               <Car size={36} />
             </div>
             <div>
@@ -906,7 +907,7 @@ export default function MapView() {
             <button
               type="button"
               onClick={() => { setInitStage('parking-select'); setParkingNavStage('building'); }}
-              className="w-full rounded-2xl bg-amber-500 px-4 py-4 text-base font-semibold text-white shadow-md shadow-amber-500/20 transition hover:bg-amber-600"
+              className="w-full rounded-2xl bg-purple-500 px-4 py-4 text-base font-semibold text-white shadow-md shadow-purple-500/20 transition hover:bg-purple-600"
             >
               Sí, quiero reservar estacionamiento
             </button>
@@ -933,7 +934,7 @@ export default function MapView() {
 
   // ── Pantalla 2: Selección de estacionamiento ──────────────────────────────
   if (initStage === 'parking-select') {
-    const parkingNodeCard = 'group rounded-3xl border border-amber-200 bg-amber-50 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-amber-900/30 dark:bg-amber-950/20';
+    const parkingNodeCard = 'group rounded-3xl border border-purple-200 bg-purple-50 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-purple-900/30 dark:bg-purple-950/20';
     const getParkingNodeStats = (ss: MapSpace[]) =>
       ss.reduce((acc, s) => { acc[parkingStatusById.get(s.space_id) ?? s.status] += 1; return acc; }, { available: 0, occupied: 0, maintenance: 0, blocked: 0 });
 
@@ -943,7 +944,7 @@ export default function MapView() {
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+              <div className="inline-flex items-center gap-2 rounded-full bg-purple-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
                 <Car size={13} />
                 Reserva de estacionamiento
               </div>
@@ -960,7 +961,7 @@ export default function MapView() {
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-amber-500 dark:border-slate-700 dark:bg-slate-950/40">
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-purple-500 dark:border-slate-700 dark:bg-slate-950/40">
               <Clock size={18} className="text-slate-400" />
               <span className="w-14 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Fecha</span>
               <input
@@ -971,7 +972,7 @@ export default function MapView() {
                 className="w-full bg-transparent outline-none"
               />
             </label>
-            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-amber-500 dark:border-slate-700 dark:bg-slate-950/40">
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-purple-500 dark:border-slate-700 dark:bg-slate-950/40">
               <Clock size={18} className="text-slate-400" />
               <span className="w-14 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Inicio</span>
               <input
@@ -981,7 +982,7 @@ export default function MapView() {
                 className="w-full bg-transparent outline-none"
               />
             </label>
-            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-amber-500 dark:border-slate-700 dark:bg-slate-950/40">
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-purple-500 dark:border-slate-700 dark:bg-slate-950/40">
               <Clock size={18} className="text-slate-400" />
               <span className="w-14 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Fin</span>
               <input
@@ -996,7 +997,7 @@ export default function MapView() {
           <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:border-slate-800 dark:bg-slate-950/40">
             <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-400" /> Libre</span>
             <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-400" /> Ocupado</span>
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-amber-400" /> Mantenimiento</span>
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-purple-400" /> Mantenimiento</span>
             <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-slate-400" /> Bloqueado</span>
             {loadingParkingAvailability && <span className="ml-auto normal-case tracking-normal text-slate-400">Actualizando disponibilidad...</span>}
           </div>
@@ -1033,27 +1034,27 @@ export default function MapView() {
 
           {/* Breadcrumb */}
           <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:border-slate-800 dark:bg-slate-950/40">
-            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'building' ? 'bg-amber-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Edificios</span>
-            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'floor' ? 'bg-amber-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Pisos</span>
-            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'zone' ? 'bg-amber-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Zonas</span>
-            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'space' ? 'bg-amber-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Espacios</span>
+            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'building' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Edificios</span>
+            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'floor' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Pisos</span>
+            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'zone' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Zonas</span>
+            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'space' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Espacios</span>
           </div>
 
           {/* Aviso de conflicto: ya tienes parking propio en ese horario */}
           {parkingConflict ? (
-            <div className="rounded-[2rem] border-2 border-amber-300 bg-gradient-to-r from-amber-100 via-orange-50 to-amber-100 px-5 py-4 text-amber-950 shadow-lg shadow-amber-500/10 ring-1 ring-amber-200/70 dark:border-amber-800 dark:from-amber-950/60 dark:via-slate-900 dark:to-amber-950/60 dark:text-amber-50 dark:ring-amber-900/40">
+            <div className="rounded-[2rem] border-2 border-purple-300 bg-gradient-to-r from-purple-100 via-purple-50 to-purple-100 px-5 py-4 text-purple-950 shadow-lg shadow-purple-500/10 ring-1 ring-purple-200/70 dark:border-purple-800 dark:from-purple-950/60 dark:via-slate-900 dark:to-purple-950/60 dark:text-purple-50 dark:ring-purple-900/40">
               <div className="flex items-start gap-4">
-                <div className="rounded-2xl bg-amber-200 p-3 text-amber-800 shadow-sm dark:bg-amber-900/50 dark:text-amber-100">
+                <div className="rounded-2xl bg-purple-200 p-3 text-purple-800 shadow-sm dark:bg-purple-900/50 dark:text-purple-100">
                   <AlertTriangle size={24} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-black uppercase tracking-[0.25em] text-amber-700 dark:text-amber-200">
+                  <p className="text-[12px] font-black uppercase tracking-[0.25em] text-purple-700 dark:text-purple-200">
                     Ya tienes estacionamiento reservado
                   </p>
-                  <p className="mt-1 text-[15px] font-bold leading-6 text-amber-950 dark:text-white">
+                  <p className="mt-1 text-[15px] font-bold leading-6 text-purple-950 dark:text-white">
                     Ya existe una reserva de estacionamiento propia que se traslapa con el horario seleccionado.
                   </p>
-                  <p className="mt-1 text-[13px] leading-5 text-amber-800 dark:text-amber-100">
+                  <p className="mt-1 text-[13px] leading-5 text-purple-800 dark:text-purple-100">
                     Cambia la fecha u horario para poder reservar otro espacio de parking.
                   </p>
                 </div>
@@ -1128,7 +1129,7 @@ export default function MapView() {
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Zona seleccionada</p>
                   <h3 className="text-xl font-bold text-slate-900 dark:text-white">Zona {parkingSelectedZone.name}</h3>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                <div className="inline-flex items-center gap-2 rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
                   <Car size={14} />
                   Estacionamiento
                 </div>
@@ -1142,7 +1143,7 @@ export default function MapView() {
                       key={space.space_id}
                       type="button"
                       onClick={() => setSelectedParkingSpaceId(isSelected ? null : space.space_id)}
-                      className={`group relative h-24 rounded-2xl border text-center shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-xl ${statusTone[effectiveStatus]} ${isSelected ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-slate-50 dark:ring-offset-slate-950' : ''}`}
+                      className={`group relative h-24 rounded-2xl border text-center shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-xl ${statusTone[effectiveStatus]} ${isSelected ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-slate-50 dark:ring-offset-slate-950' : ''}`}
                     >
                       <div className="flex h-full items-center justify-center px-2">
                         <div className="space-y-1">
@@ -1154,7 +1155,7 @@ export default function MapView() {
                         </div>
                       </div>
                       {isSelected && (
-                        <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white shadow-md">✓</span>
+                        <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-purple-500 text-[10px] font-bold text-white shadow-md">✓</span>
                       )}
                     </button>
                   );
@@ -1172,7 +1173,7 @@ export default function MapView() {
         <div className="fixed bottom-4 left-4 right-4 z-40">
           <div className="mx-auto flex max-w-3xl flex-col gap-4 rounded-2xl bg-slate-950 px-4 py-3.5 text-white shadow-2xl shadow-slate-950/30 ring-1 ring-white/10 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
-              <div className="rounded-2xl bg-white/10 p-2.5 text-amber-400">
+              <div className="rounded-2xl bg-white/10 p-2.5 text-purple-400">
                 <Car size={22} />
               </div>
               <div>
@@ -1198,7 +1199,7 @@ export default function MapView() {
                 type="button"
                 onClick={handleConfirmParking}
                 disabled={confirmingParking}
-                className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-amber-900/20 transition hover:bg-amber-400 disabled:opacity-60"
+                className="rounded-2xl bg-purple-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-purple-900/20 transition hover:bg-purple-400 disabled:opacity-60"
               >
                 {confirmingParking ? 'Reservando...' : selectedParkingSpace ? 'Confirmar estacionamiento' : 'Continuar sin parking'}
               </button>
@@ -1246,7 +1247,7 @@ export default function MapView() {
         <button
           type="button"
           onClick={() => { setInitStage('parking-select'); setParkingNavStage('building'); setParkingBuildingId(null); setParkingFloorId(null); setParkingZoneId(null); setSelectedParkingSpaceId(null); }}
-          className="inline-flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50"
+          className="inline-flex items-center gap-2 rounded-2xl border border-purple-200 bg-purple-50 px-4 py-2.5 text-sm font-semibold text-purple-700 shadow-sm transition hover:bg-purple-100 dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-300 dark:hover:bg-purple-950/50"
         >
           <Car size={16} />
           Elegir estacionamiento
@@ -1254,19 +1255,19 @@ export default function MapView() {
       </div>
 
       {hiddenTypesMessage ? (
-        <div className="rounded-[2rem] border-2 border-amber-300 bg-gradient-to-r from-amber-100 via-orange-50 to-amber-100 px-5 py-4 text-amber-950 shadow-lg shadow-amber-500/10 ring-1 ring-amber-200/70 dark:border-amber-800 dark:from-amber-950/60 dark:via-slate-900 dark:to-amber-950/60 dark:text-amber-50 dark:shadow-amber-950/30 dark:ring-amber-900/40">
+        <div className="rounded-[2rem] border-2 border-purple-300 bg-gradient-to-r from-purple-100 via-purple-50 to-purple-100 px-5 py-4 text-purple-950 shadow-lg shadow-purple-500/10 ring-1 ring-purple-200/70 dark:border-purple-800 dark:from-purple-950/60 dark:via-slate-900 dark:to-purple-950/60 dark:text-purple-50 dark:shadow-purple-950/30 dark:ring-purple-900/40">
           <div className="flex items-start gap-4">
-            <div className="rounded-2xl bg-amber-200 p-3 text-amber-800 shadow-sm dark:bg-amber-900/50 dark:text-amber-100">
+            <div className="rounded-2xl bg-purple-200 p-3 text-purple-800 shadow-sm dark:bg-purple-900/50 dark:text-purple-100">
               <AlertTriangle size={24} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-black uppercase tracking-[0.25em] text-amber-700 dark:text-amber-200">
+              <p className="text-[12px] font-black uppercase tracking-[0.25em] text-purple-700 dark:text-purple-200">
                 Cards ocultas por reserva del mismo tipo
               </p>
-              <p className="mt-1 text-[15px] font-bold leading-6 text-amber-950 dark:text-white">
+              <p className="mt-1 text-[15px] font-bold leading-6 text-purple-950 dark:text-white">
                 {hiddenTypesMessage}
               </p>
-              <p className="mt-1 text-[13px] leading-5 text-amber-800 dark:text-amber-100">
+              <p className="mt-1 text-[13px] leading-5 text-purple-800 dark:text-purple-100">
                 Cambia el horario para volver a ver esas cards.
               </p>
             </div>
@@ -1276,7 +1277,7 @@ export default function MapView() {
 
       <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="grid gap-3 lg:grid-cols-[1.2fr_0.9fr_0.9fr]">
-          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-blue-500 dark:border-slate-700 dark:bg-slate-950/40">
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-purple-500 dark:border-slate-700 dark:bg-slate-950/40">
             <Clock size={18} className="text-slate-400" />
             <span className="w-14 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Fecha</span>
             <input
@@ -1288,7 +1289,7 @@ export default function MapView() {
             />
           </label>
 
-          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-blue-500 dark:border-slate-700 dark:bg-slate-950/40">
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-purple-500 dark:border-slate-700 dark:bg-slate-950/40">
             <Clock size={18} className="text-slate-400" />
             <span className="w-14 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Inicio</span>
             <input
@@ -1300,7 +1301,7 @@ export default function MapView() {
             />
           </label>
 
-          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-blue-500 dark:border-slate-700 dark:bg-slate-950/40">
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm transition focus-within:border-purple-500 dark:border-slate-700 dark:bg-slate-950/40">
             <Clock size={18} className="text-slate-400" />
             <span className="w-14 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Fin</span>
             <input
@@ -1316,7 +1317,7 @@ export default function MapView() {
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:border-slate-800 dark:bg-slate-950/40">
           <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-400" /> Libre</span>
           <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-400" /> Ocupado</span>
-          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-amber-400" /> Mantenimiento</span>
+          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-purple-400" /> Mantenimiento</span>
           <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-slate-400" /> Bloqueado</span>
           <span className="ml-auto text-[11px] normal-case tracking-normal text-slate-400">
             {availabilityMessage}
@@ -1324,9 +1325,9 @@ export default function MapView() {
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
-          <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">Desk</span>
+          <span className="rounded-full bg-purple-100 px-3 py-1 text-purple-700 dark:bg-purple-900/30 dark:text-purple-200">Desk</span>
           <span className="rounded-full bg-violet-100 px-3 py-1 text-violet-700 dark:bg-violet-900/30 dark:text-violet-200">Meeting Room</span>
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">Parking</span>
+          <span className="rounded-full bg-purple-100 px-3 py-1 text-purple-700 dark:bg-purple-900/30 dark:text-purple-200">Parking</span>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700 dark:bg-slate-800 dark:text-slate-200">Espacio</span>
           <div className="ml-auto flex items-center gap-2">
             <span className="normal-case tracking-normal text-slate-400">
@@ -1385,10 +1386,10 @@ export default function MapView() {
         </div>
 
         <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:border-slate-800 dark:bg-slate-950/40">
-          <span className={`rounded-full px-3 py-1 ${stage === 'building' ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Edificios</span>
-          <span className={`rounded-full px-3 py-1 ${stage === 'floor' ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Pisos</span>
-          <span className={`rounded-full px-3 py-1 ${stage === 'zone' ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Zonas</span>
-          <span className={`rounded-full px-3 py-1 ${stage === 'space' ? 'bg-blue-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Espacios</span>
+          <span className={`rounded-full px-3 py-1 ${stage === 'building' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Edificios</span>
+          <span className={`rounded-full px-3 py-1 ${stage === 'floor' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Pisos</span>
+          <span className={`rounded-full px-3 py-1 ${stage === 'zone' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Zonas</span>
+          <span className={`rounded-full px-3 py-1 ${stage === 'space' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Espacios</span>
         </div>
 
         {stage === 'building' ? (
@@ -1445,13 +1446,13 @@ export default function MapView() {
         ) : stage === 'space' && selectedZone ? (
           <div className="space-y-4">
             {hiddenTypesMessage ? (
-              <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-50">
+              <div className="rounded-3xl border border-purple-200 bg-purple-50 px-4 py-4 text-purple-950 shadow-sm dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-50">
                 <div className="flex items-start gap-3">
-                  <div className="rounded-2xl bg-amber-100 p-2.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                  <div className="rounded-2xl bg-purple-100 p-2.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
                     <AlertTriangle size={18} />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700 dark:text-amber-200">Espacios ocultos</p>
+                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-purple-700 dark:text-purple-200">Espacios ocultos</p>
                     <p className="mt-1 text-sm leading-6">{hiddenTypesMessage}</p>
                   </div>
                 </div>
@@ -1464,7 +1465,7 @@ export default function MapView() {
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Zona seleccionada</p>
                   <h3 className="text-xl font-bold text-slate-900 dark:text-white">Zona {selectedZone.name}</h3>
                 </div>
-                <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${selectedFloor?.floor_type === 'parking' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${selectedFloor?.floor_type === 'parking' ? 'bg-purple-100 text-purple-700' : 'bg-purple-100 text-purple-700'}`}>
                   {selectedFloor?.floor_type === 'parking' ? <Car size={14} /> : <Monitor size={14} />}
                   {selectedFloor ? floorTypeLabel[selectedFloor.floor_type] : 'Nivel'}
                 </div>
@@ -1484,7 +1485,7 @@ export default function MapView() {
                         type="button"
                         disabled={!isAvailable}
                         onClick={() => handleSpaceClick(space)}
-                        className={`group relative h-24 rounded-2xl border text-center shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-xl ${statusTone[effectiveStatus]} ${selected ? 'ring-2 ring-blue-600 ring-offset-2 ring-offset-slate-50 dark:ring-offset-slate-950' : ''}`}
+                        className={`group relative h-24 rounded-2xl border text-center shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-xl ${statusTone[effectiveStatus]} ${selected ? 'ring-2 ring-purple-600 ring-offset-2 ring-offset-slate-50 dark:ring-offset-slate-950' : ''}`}
                       >
                         <div className="flex h-full items-center justify-center px-2">
                           <div className="space-y-1">
@@ -1496,7 +1497,7 @@ export default function MapView() {
                           </div>
                         </div>
                         {effectiveStatus !== 'available' ? (
-                          <div className={`absolute -top-1 -right-1 flex h-6 min-w-6 items-center justify-center rounded-full border border-white px-1.5 text-[10px] font-bold shadow-sm ${effectiveStatus === 'blocked' ? 'bg-slate-100 text-slate-600' : effectiveStatus === 'maintenance' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                          <div className={`absolute -top-1 -right-1 flex h-6 min-w-6 items-center justify-center rounded-full border border-white px-1.5 text-[10px] font-bold shadow-sm ${effectiveStatus === 'blocked' ? 'bg-slate-100 text-slate-600' : effectiveStatus === 'maintenance' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'}`}>
                             {statusLabel[effectiveStatus]}
                           </div>
                         ) : null}
@@ -1580,7 +1581,7 @@ export default function MapView() {
             <button
               type="button"
               onClick={handleReserve}
-              className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition ${isGuestMode ? 'bg-violet-600 hover:bg-violet-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+              className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition ${isGuestMode ? 'bg-violet-600 hover:bg-violet-700' : 'bg-purple-600 hover:bg-purple-700'}`}
             >
               {isGuestMode ? 'Reservar para invitado' : 'Reservar'}
             </button>

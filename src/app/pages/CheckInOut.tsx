@@ -27,6 +27,7 @@ import {
   ReservationRecord,
   ReservationSpace,
 } from '../../services/reservation';
+import { useToast } from '../components/feedback/ToastProvider';
 
 type IncidentType = 'occupied' | 'reassignment' | 'other';
 
@@ -193,8 +194,8 @@ export default function CheckInOut() {
   const [selectedReservationIndex, setSelectedReservationIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const toast = useToast();
   const [extensionTime, setExtensionTime] = useState('');
   const [incidentType, setIncidentType] = useState<IncidentType>('occupied');
   const [incidentDescription, setIncidentDescription] = useState('');
@@ -227,7 +228,7 @@ export default function CheckInOut() {
 
   useEffect(() => {
     if (!currentUserId) {
-      setError('No se encontró la sesión del usuario.');
+      setLoadError('No se encontró la sesión del usuario.');
       setLoading(false);
       return;
     }
@@ -235,15 +236,15 @@ export default function CheckInOut() {
     setLoading(true);
     getUserReservations(currentUserId)
       .then((data) => {
-        const eligibleReservations = data.filter((res) => 
+        const eligibleReservations = data.filter((res) =>
           ['reserved', 'checked_in', 'checkout_pending'].includes(res.status)
         );
         setReservations(eligibleReservations);
         setSelectedReservationIndex(0);
-        setError('');
+        setLoadError('');
       })
       .catch((fetchError) => {
-        setError(fetchError instanceof Error ? fetchError.message : 'No fue posible cargar tus reservas activas.');
+        setLoadError(fetchError instanceof Error ? fetchError.message : 'No fue posible cargar tus reservas activas.');
       })
       .finally(() => setLoading(false));
   }, [currentUserId]);
@@ -268,21 +269,19 @@ export default function CheckInOut() {
     }
     // Validacion defensiva: comprobar ventana de check-in vigente
     if (!canCheckInWindow) {
-      setError('El check-in solo está disponible desde 15 minutos antes del inicio y hasta la hora final de la reserva.');
+      toast.error('El check-in solo está disponible desde 15 minutos antes del inicio y hasta la hora final de la reserva.');
       return;
     }
 
     setActionLoading(true);
-    setError('');
-    setMessage('');
 
     try {
       const location = await requestCurrentLocation();
       await checkInReservation(activeReservation.reservation_id, location);
       await refreshReservations();
-      setMessage('Check-in registrado correctamente.');
+      toast.success('Check-in registrado correctamente.');
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'No fue posible registrar el check-in.');
+      toast.error(actionError instanceof Error ? actionError.message : 'No fue posible registrar el check-in.');
     } finally {
       setActionLoading(false);
     }
@@ -294,26 +293,24 @@ export default function CheckInOut() {
     }
 
     if (!isAdmin || !activeReservation.event_id) {
-      setError('Solo un administrador puede hacer check-in de evento.');
+      toast.error('Solo un administrador puede hacer check-in de evento.');
       return;
     }
 
     if (!canCheckInWindow) {
-      setError('El check-in solo está disponible desde 15 minutos antes del inicio y hasta la hora final de la reserva.');
+      toast.error('El check-in solo está disponible desde 15 minutos antes del inicio y hasta la hora final de la reserva.');
       return;
     }
 
     setActionLoading(true);
-    setError('');
-    setMessage('');
 
     try {
       const location = await requestCurrentLocation();
       const result = await checkInEventReservation(activeReservation.reservation_id, location);
       await refreshReservations();
-      setMessage(`Check-in de evento registrado correctamente. Se actualizaron ${result.checked_in_count} reservas.`);
+      toast.success(`Check-in de evento registrado correctamente. Se actualizaron ${result.checked_in_count} reservas.`);
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'No fue posible registrar el check-in del evento.');
+      toast.error(actionError instanceof Error ? actionError.message : 'No fue posible registrar el check-in del evento.');
     } finally {
       setActionLoading(false);
     }
@@ -325,15 +322,13 @@ export default function CheckInOut() {
     }
 
     setActionLoading(true);
-    setError('');
-    setMessage('');
 
     try {
       await checkOutReservation(activeReservation.reservation_id);
       await refreshReservations();
-      setMessage('Check-out realizado correctamente.');
+      toast.success('Check-out realizado correctamente.');
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'No fue posible registrar el check-out.');
+      toast.error(actionError instanceof Error ? actionError.message : 'No fue posible registrar el check-out.');
     } finally {
       setActionLoading(false);
     }
@@ -341,20 +336,18 @@ export default function CheckInOut() {
 
   const handleExtend = async () => {
     if (!activeReservation || !extensionTime) {
-      setError('Selecciona una nueva hora de finalización.');
+      toast.error('Selecciona una nueva hora de finalización.');
       return;
     }
 
     setActionLoading(true);
-    setError('');
-    setMessage('');
 
     try {
       await extendReservation(activeReservation.reservation_id, new Date(extensionTime).toISOString());
       await refreshReservations();
-      setMessage('La reserva se extendió correctamente.');
+      toast.success('La reserva se extendió correctamente.');
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'No fue posible extender la reserva.');
+      toast.error(actionError instanceof Error ? actionError.message : 'No fue posible extender la reserva.');
     } finally {
       setActionLoading(false);
     }
@@ -362,13 +355,11 @@ export default function CheckInOut() {
 
   const handleReportIncident = async () => {
     if (!activeReservation || !incidentDescription.trim()) {
-      setError('Escribe una descripción para reportar la incidencia.');
+      toast.error('Escribe una descripción para reportar la incidencia.');
       return;
     }
 
     setActionLoading(true);
-    setError('');
-    setMessage('');
 
     // Capture reservation info before refreshing (activeReservation may change)
     const resStart = activeReservation.start_time;
@@ -385,7 +376,7 @@ export default function CheckInOut() {
       });
 
       await refreshReservations();
-      setMessage('Incidencia registrada. Revisa los espacios alternativos disponibles.');
+      toast.success('Incidencia registrada. Revisa los espacios alternativos disponibles.');
       setIncidentDescription('');
       setIncidentNotes('');
       setIncidentType('occupied');
@@ -406,7 +397,7 @@ export default function CheckInOut() {
         // If fetching alternatives fails, just show the success message without the modal
       }
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'No fue posible reportar la incidencia.');
+      toast.error(actionError instanceof Error ? actionError.message : 'No fue posible reportar la incidencia.');
     } finally {
       setActionLoading(false);
     }
@@ -460,22 +451,16 @@ export default function CheckInOut() {
         </div>
       </div>
 
-      {error ? (
+      {loadError ? (
         <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </div>
-      ) : null}
-
-      {message ? (
-        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {message}
+          {loadError}
         </div>
       ) : null}
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         <div className="lg:col-span-7 space-y-6">
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-6 py-5 text-white">
+            <div className="bg-gradient-to-r from-purple-950 via-purple-900 to-purple-950 px-6 py-5 text-white">
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -548,7 +533,7 @@ export default function CheckInOut() {
                       <button
                         onClick={handleCheckIn}
                         disabled={!canCheckInWindow || actionLoading}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                       >
                         <LogIn size={18} />
                         Check-in con ubicación
@@ -592,7 +577,7 @@ export default function CheckInOut() {
                           type="datetime-local"
                           value={extensionTime}
                           onChange={(event) => setExtensionTime(event.target.value)}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-0 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-0 focus:border-purple-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                         />
                       </label>
 
@@ -739,7 +724,7 @@ export default function CheckInOut() {
                 </div>
               </div>
               <div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
-                <RotateCcw size={18} className="mt-0.5 text-blue-500" />
+                <RotateCcw size={18} className="mt-0.5 text-purple-500" />
                 <div>
                   <p className="font-semibold text-slate-900 dark:text-white">Extensión</p>
                   <p>Se valida contra el buffer de otras reservas del mismo espacio.</p>

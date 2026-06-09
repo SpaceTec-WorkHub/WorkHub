@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   Car,
   MapPin,
@@ -10,7 +10,6 @@ import {
   Users,
   CalendarDays,
   Loader2,
-  AlertCircle,
   CheckCircle2,
   Info,
   Eye,
@@ -26,6 +25,8 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { getCurrentUserId } from '../../services/auth';
+import { useToast } from '../components/feedback/ToastProvider';
+import { useConfirm } from '../components/feedback/ConfirmProvider';
 import {
   getCarpoolTrips,
   getVehiclesByOwner,
@@ -93,67 +94,6 @@ function describeRideProgress(trip: CarpoolTrip, riderStatus: string) {
   }
 }
 
-const TOAST_STYLES: Record<'success' | 'error' | 'info', { box: string; iconWrap: string; icon: React.ReactNode }> = {
-  success: {
-    box: 'border-green-200 dark:border-green-800 text-green-700 dark:text-green-300',
-    iconWrap: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400',
-    icon: <CheckCircle2 size={16} />,
-  },
-  error: {
-    box: 'border-red-200 dark:border-red-800 text-red-700 dark:text-red-300',
-    iconWrap: 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400',
-    icon: <AlertCircle size={16} />,
-  },
-  info: {
-    box: 'border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300',
-    iconWrap: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-    icon: <Info size={16} />,
-  },
-};
-
-function FloatingMessage({
-  variant,
-  message,
-  onDismiss,
-}: {
-  variant: 'success' | 'error' | 'info';
-  message: string;
-  onDismiss: () => void;
-}) {
-  useEffect(() => {
-    const timer = setTimeout(onDismiss, 6000);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [message]);
-
-  const style = TOAST_STYLES[variant];
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 16, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 8, scale: 0.95 }}
-      className={clsx(
-        'flex items-start gap-3 p-3.5 pr-2.5 rounded-xl border shadow-lg bg-white dark:bg-slate-800 max-w-sm w-full pointer-events-auto',
-        style.box,
-      )}
-    >
-      <span className={clsx('w-7 h-7 rounded-full flex items-center justify-center shrink-0', style.iconWrap)}>
-        {style.icon}
-      </span>
-      <p className="text-sm flex-1 pt-0.5 text-slate-700 dark:text-slate-200">{message}</p>
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-1 -mr-1 shrink-0"
-      >
-        <X size={14} />
-      </button>
-    </motion.div>
-  );
-}
-
 function initials(name?: string) {
   if (!name) return '??';
   const parts = name.trim().split(/\s+/);
@@ -176,7 +116,7 @@ const TRIP_STATUS_STYLES: Record<string, string> = {
   draft: 'text-slate-500 bg-slate-100 dark:bg-slate-700 dark:text-slate-300',
   open: 'text-green-600 bg-green-50 dark:bg-green-900/30',
   full: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30',
-  in_progress: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30',
+  in_progress: 'text-purple-600 bg-purple-50 dark:bg-purple-900/30',
   completed: 'text-slate-500 bg-slate-100 dark:bg-slate-700 dark:text-slate-300',
   cancelled: 'text-red-600 bg-red-50 dark:bg-red-900/30',
 };
@@ -194,7 +134,7 @@ const RIDER_STATUS_LABELS: Record<string, string> = {
 const RIDER_STATUS_BADGE_STYLES: Record<string, string> = {
   requested: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30',
   accepted: 'text-green-600 bg-green-50 dark:bg-green-900/30',
-  boarded: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30',
+  boarded: 'text-purple-600 bg-purple-50 dark:bg-purple-900/30',
   rejected: 'text-red-600 bg-red-50 dark:bg-red-900/30',
   cancelled: 'text-slate-500 bg-slate-100 dark:bg-slate-700 dark:text-slate-300',
   no_show: 'text-red-600 bg-red-50 dark:bg-red-900/30',
@@ -205,6 +145,8 @@ const RIDER_STATUS_BADGE_STYLES: Record<string, string> = {
 
 export default function Carpool() {
   const currentUserId = getCurrentUserId();
+  const toast = useToast();
+  const { confirm, promptText } = useConfirm();
   const [activeTab, setActiveTab] = useState<'find' | 'offer'>('find');
 
   // Trips
@@ -215,28 +157,8 @@ export default function Carpool() {
 
   // Per-trip request/cancel action state
   const [actionTripId, setActionTripId] = useState<number | null>(null);
-  const [actionError, setActionError] = useState('');
-  const [actionMessage, setActionMessage] = useState('');
   const [showActiveRideDetails, setShowActiveRideDetails] = useState(false);
   const [showRideHistory, setShowRideHistory] = useState(false);
-
-  // Custom confirm / reason-prompt floating dialogs (replace native window.confirm/prompt)
-  const [confirmDialog, setConfirmDialog] = useState<{
-    title: string;
-    description: string;
-    confirmLabel: string;
-    tone: 'default' | 'danger';
-    onConfirm: () => void;
-  } | null>(null);
-  const [reasonDialog, setReasonDialog] = useState<{
-    title: string;
-    description: string;
-    placeholder: string;
-    confirmLabel: string;
-    onSubmit: (reason: string) => void;
-  } | null>(null);
-  const [reasonDialogValue, setReasonDialogValue] = useState('');
-  const [reasonDialogError, setReasonDialogError] = useState('');
 
   // Vehicles for "offer ride"
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -252,8 +174,6 @@ export default function Carpool() {
   const [departureTime, setDepartureTime] = useState('');
   const [notes, setNotes] = useState('');
   const [publishing, setPublishing] = useState(false);
-  const [publishError, setPublishError] = useState('');
-  const [publishSuccess, setPublishSuccess] = useState('');
 
   // "Ofrecer Viaje" view: publish form vs. "Mis viajes"
   const [offerView, setOfferView] = useState<'publish' | 'myTrips'>('publish');
@@ -261,8 +181,6 @@ export default function Carpool() {
   const [loadingMyTrips, setLoadingMyTrips] = useState(false);
   const [myTripsError, setMyTripsError] = useState('');
   const [tripActionId, setTripActionId] = useState<number | null>(null);
-  const [tripActionError, setTripActionError] = useState('');
-  const [tripActionMessage, setTripActionMessage] = useState('');
   const [riderActionKey, setRiderActionKey] = useState<string | null>(null);
 
   const loadTrips = () => {
@@ -364,14 +282,12 @@ export default function Carpool() {
   const handleRequestRide = async (trip: CarpoolTrip) => {
     if (!currentUserId) return;
     setActionTripId(trip.trip_id);
-    setActionError('');
-    setActionMessage('');
     try {
       await requestRide(trip.trip_id, currentUserId);
-      setActionMessage('¡Solicitud enviada! Se reservó tu lugar en el viaje.');
+      toast.success('¡Solicitud enviada! Se reservó tu lugar en el viaje.');
       loadTrips();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'No se pudo solicitar el viaje');
+      toast.error(err instanceof Error ? err.message : 'No se pudo solicitar el viaje');
     } finally {
       setActionTripId(null);
     }
@@ -380,15 +296,13 @@ export default function Carpool() {
   const handleCancelRide = async (trip: CarpoolTrip) => {
     if (!currentUserId) return;
     setActionTripId(trip.trip_id);
-    setActionError('');
-    setActionMessage('');
     try {
       await cancelRide(trip.trip_id, currentUserId);
-      setActionMessage('Tu solicitud fue cancelada y el lugar quedó disponible de nuevo.');
+      toast.success('Tu solicitud fue cancelada y el lugar quedó disponible de nuevo.');
       setShowActiveRideDetails(false);
       loadTrips();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'No se pudo cancelar la solicitud');
+      toast.error(err instanceof Error ? err.message : 'No se pudo cancelar la solicitud');
     } finally {
       setActionTripId(null);
     }
@@ -397,129 +311,101 @@ export default function Carpool() {
   const handleStartTrip = async (trip: CarpoolTrip) => {
     if (!currentUserId) return;
     setTripActionId(trip.trip_id);
-    setTripActionError('');
-    setTripActionMessage('');
     try {
       await startTrip(trip.trip_id, currentUserId);
-      setTripActionMessage('¡Viaje iniciado! Ya puedes confirmar el punto de encuentro cuando llegues.');
+      toast.success('¡Viaje iniciado! Ya puedes confirmar el punto de encuentro cuando llegues.');
       loadMyTrips();
     } catch (err) {
-      setTripActionError(err instanceof Error ? err.message : 'No se pudo iniciar el viaje');
+      toast.error(err instanceof Error ? err.message : 'No se pudo iniciar el viaje');
     } finally {
       setTripActionId(null);
     }
   };
 
-  const runConfirmMeetingPoint = async (trip: CarpoolTrip) => {
+  const handleConfirmMeetingPoint = async (trip: CarpoolTrip) => {
     if (!currentUserId) return;
-    setTripActionId(trip.trip_id);
-    setTripActionError('');
-    setTripActionMessage('');
-    try {
-      await confirmMeetingPoint(trip.trip_id, currentUserId);
-      setTripActionMessage('Listo: marcaste que ya pasaste por el punto de encuentro. Cuando llegues al destino, presiona "Finalizar viaje".');
-      loadMyTrips();
-    } catch (err) {
-      setTripActionError(err instanceof Error ? err.message : 'No se pudo confirmar el punto de encuentro');
-    } finally {
-      setTripActionId(null);
-    }
-  };
-
-  const handleConfirmMeetingPoint = (trip: CarpoolTrip) => {
-    setConfirmDialog({
+    const ok = await confirm({
       title: 'Confirmar punto de encuentro',
       description: '¿Ya llegaste al punto de encuentro y subiste a tus pasajeros? Les avisaremos que el recorrido continúa hacia el destino.',
       confirmLabel: 'Sí, ya llegué',
       tone: 'default',
-      onConfirm: () => {
-        setConfirmDialog(null);
-        void runConfirmMeetingPoint(trip);
-      },
     });
-  };
+    if (!ok) return;
 
-  const runCompleteTrip = async (trip: CarpoolTrip) => {
-    if (!currentUserId) return;
     setTripActionId(trip.trip_id);
-    setTripActionError('');
-    setTripActionMessage('');
     try {
-      await completeTrip(trip.trip_id, currentUserId);
-      setTripActionMessage('¡Viaje terminado! Se marcó como completado para ti y tus pasajeros.');
+      await confirmMeetingPoint(trip.trip_id, currentUserId);
+      toast.success('Listo: marcaste que ya pasaste por el punto de encuentro. Cuando llegues al destino, presiona "Finalizar viaje".');
       loadMyTrips();
     } catch (err) {
-      setTripActionError(err instanceof Error ? err.message : 'No se pudo terminar el viaje');
+      toast.error(err instanceof Error ? err.message : 'No se pudo confirmar el punto de encuentro');
     } finally {
       setTripActionId(null);
     }
   };
 
-  const handleCompleteTrip = (trip: CarpoolTrip) => {
-    setConfirmDialog({
+  const handleCompleteTrip = async (trip: CarpoolTrip) => {
+    if (!currentUserId) return;
+    const ok = await confirm({
       title: 'Finalizar viaje',
       description: '¿Ya llegaron al destino y el recorrido terminó? El viaje se marcará como completado para ti y tus pasajeros.',
       confirmLabel: 'Sí, finalizar viaje',
       tone: 'default',
-      onConfirm: () => {
-        setConfirmDialog(null);
-        void runCompleteTrip(trip);
-      },
     });
-  };
+    if (!ok) return;
 
-  const runCancelTrip = async (trip: CarpoolTrip, reason: string) => {
-    if (!currentUserId) return;
     setTripActionId(trip.trip_id);
-    setTripActionError('');
-    setTripActionMessage('');
     try {
-      await cancelTrip(trip.trip_id, currentUserId, reason.trim());
-      setTripActionMessage('El viaje fue cancelado. Tus pasajeros quedaron desvinculados de él y verán el motivo de la cancelación.');
+      await completeTrip(trip.trip_id, currentUserId);
+      toast.success('¡Viaje terminado! Se marcó como completado para ti y tus pasajeros.');
       loadMyTrips();
     } catch (err) {
-      setTripActionError(err instanceof Error ? err.message : 'No se pudo cancelar el viaje');
+      toast.error(err instanceof Error ? err.message : 'No se pudo terminar el viaje');
     } finally {
       setTripActionId(null);
     }
   };
 
-  const handleCancelTrip = (trip: CarpoolTrip) => {
-    setConfirmDialog({
+  const handleCancelTrip = async (trip: CarpoolTrip) => {
+    if (!currentUserId) return;
+    const ok = await confirm({
       title: 'Cancelar viaje',
       description: '¿Seguro que quieres cancelar este viaje? Se notificará a tus pasajeros y no podrás deshacer esta acción.',
       confirmLabel: 'Sí, cancelar viaje',
       tone: 'danger',
-      onConfirm: () => {
-        setConfirmDialog(null);
-        setReasonDialogValue('');
-        setReasonDialogError('');
-        setReasonDialog({
-          title: 'Motivo de la cancelación',
-          description: 'Cuéntales brevemente a tus pasajeros por qué cancelas este viaje; verán este mensaje en su notificación.',
-          placeholder: 'Ejemplo: tuve una emergencia y no podré hacer el recorrido hoy.',
-          confirmLabel: 'Cancelar viaje',
-          onSubmit: (reason) => {
-            setReasonDialog(null);
-            void runCancelTrip(trip, reason);
-          },
-        });
-      },
     });
+    if (!ok) return;
+
+    const reason = await promptText({
+      title: 'Motivo de la cancelación',
+      description: 'Cuéntales brevemente a tus pasajeros por qué cancelas este viaje; verán este mensaje en su notificación.',
+      placeholder: 'Ejemplo: tuve una emergencia y no podré hacer el recorrido hoy.',
+      confirmLabel: 'Cancelar viaje',
+    });
+    if (reason === null) return;
+
+    setTripActionId(trip.trip_id);
+    try {
+      await cancelTrip(trip.trip_id, currentUserId, reason);
+      toast.success('El viaje fue cancelado. Tus pasajeros quedaron desvinculados de él y verán el motivo de la cancelación.');
+      loadMyTrips();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo cancelar el viaje');
+    } finally {
+      setTripActionId(null);
+    }
   };
 
   const handleAcceptRider = async (trip: CarpoolTrip, rider: TripRider) => {
     if (!currentUserId) return;
     const key = `${trip.trip_id}-${rider.user_id}`;
     setRiderActionKey(key);
-    setTripActionError('');
-    setTripActionMessage('');
     try {
       await acceptRider(trip.trip_id, rider.user_id, currentUserId);
-      setTripActionMessage(`Aceptaste a ${rider.user?.full_name ?? 'el pasajero'} en este viaje.`);
+      toast.success(`Aceptaste a ${rider.user?.full_name ?? 'el pasajero'} en este viaje.`);
       loadMyTrips();
     } catch (err) {
-      setTripActionError(err instanceof Error ? err.message : 'No se pudo aceptar la solicitud');
+      toast.error(err instanceof Error ? err.message : 'No se pudo aceptar la solicitud');
     } finally {
       setRiderActionKey(null);
     }
@@ -529,14 +415,12 @@ export default function Carpool() {
     if (!currentUserId) return;
     const key = `${trip.trip_id}-${rider.user_id}`;
     setRiderActionKey(key);
-    setTripActionError('');
-    setTripActionMessage('');
     try {
       await rejectRider(trip.trip_id, rider.user_id, currentUserId);
-      setTripActionMessage(`Rechazaste la solicitud de ${rider.user?.full_name ?? 'el pasajero'}. Su asiento quedó disponible de nuevo.`);
+      toast.success(`Rechazaste la solicitud de ${rider.user?.full_name ?? 'el pasajero'}. Su asiento quedó disponible de nuevo.`);
       loadMyTrips();
     } catch (err) {
-      setTripActionError(err instanceof Error ? err.message : 'No se pudo rechazar la solicitud');
+      toast.error(err instanceof Error ? err.message : 'No se pudo rechazar la solicitud');
     } finally {
       setRiderActionKey(null);
     }
@@ -545,25 +429,23 @@ export default function Carpool() {
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUserId) return;
-    setPublishError('');
-    setPublishSuccess('');
 
     if (!selectedVehicle) {
-      setPublishError('Selecciona el vehículo con el que ofrecerás el viaje.');
+      toast.error('Selecciona el vehículo con el que ofrecerás el viaje.');
       return;
     }
     if (!origin.trim() || !destination.trim()) {
-      setPublishError('Indica el origen y el destino del viaje.');
+      toast.error('Indica el origen y el destino del viaje.');
       return;
     }
 
     const tripDateIso = buildTripDateIso(tripDate, tripTime);
     if (!tripDateIso) {
-      setPublishError('Indica una fecha y hora válidas para el punto de encuentro.');
+      toast.error('Indica una fecha y hora válidas para el punto de encuentro.');
       return;
     }
     if (new Date(tripDateIso) <= new Date()) {
-      setPublishError('La fecha y hora del viaje deben ser futuras.');
+      toast.error('La fecha y hora del viaje deben ser futuras.');
       return;
     }
 
@@ -571,7 +453,7 @@ export default function Carpool() {
     if (departureTime.trim()) {
       const built = buildTripDateIso(tripDate, departureTime);
       if (!built) {
-        setPublishError('Indica una hora de salida válida.');
+        toast.error('Indica una hora de salida válida.');
         return;
       }
       // The departure time can be earlier than the meeting point time (e.g. departing
@@ -591,7 +473,7 @@ export default function Carpool() {
         notes: notes.trim() || undefined,
         driver_id: currentUserId,
       });
-      setPublishSuccess('¡Viaje publicado! Ya aparece disponible para que otros lo soliciten.');
+      toast.success('¡Viaje publicado! Ya aparece disponible para que otros lo soliciten.');
       setSelectedVehicleId(null);
       setOrigin('');
       setDestination('');
@@ -602,7 +484,7 @@ export default function Carpool() {
       setNotes('');
       loadTrips();
     } catch (err) {
-      setPublishError(err instanceof Error ? err.message : 'No se pudo publicar el viaje');
+      toast.error(err instanceof Error ? err.message : 'No se pudo publicar el viaje');
     } finally {
       setPublishing(false);
     }
@@ -627,7 +509,7 @@ export default function Carpool() {
             onClick={() => setActiveTab('find')}
             className={clsx(
               'flex-1 py-4 text-center font-medium text-sm transition-colors',
-              activeTab === 'find' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600 dark:bg-slate-700 dark:text-blue-400' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700',
+              activeTab === 'find' ? 'bg-purple-50 text-purple-600 border-b-2 border-purple-600 dark:bg-slate-700 dark:text-purple-400' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700',
             )}
           >
             Buscar Viaje
@@ -636,7 +518,7 @@ export default function Carpool() {
             onClick={() => setActiveTab('offer')}
             className={clsx(
               'flex-1 py-4 text-center font-medium text-sm transition-colors',
-              activeTab === 'offer' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600 dark:bg-slate-700 dark:text-blue-400' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700',
+              activeTab === 'offer' ? 'bg-purple-50 text-purple-600 border-b-2 border-purple-600 dark:bg-slate-700 dark:text-purple-400' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700',
             )}
           >
             Ofrecer Viaje
@@ -654,25 +536,25 @@ export default function Carpool() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="¿Desde dónde sales?"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={loadTrips}
-                  className="bg-blue-600 text-white px-6 rounded-xl font-medium hover:bg-blue-700 transition-colors"
+                  className="bg-purple-600 text-white px-6 rounded-xl font-medium hover:bg-purple-700 transition-colors"
                 >
                   <Search size={20} />
                 </button>
               </div>
 
               {myActiveRide ? (
-                <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 space-y-3">
+                <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 space-y-3">
                   <div className="flex items-start gap-3">
-                    <Info size={18} className="mt-0.5 shrink-0 text-blue-600 dark:text-blue-400" />
-                    <div className="text-sm text-blue-700 dark:text-blue-300">
+                    <Info size={18} className="mt-0.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                    <div className="text-sm text-purple-700 dark:text-purple-300">
                       <div className="flex items-center flex-wrap gap-2">
-                        <p className="font-semibold text-blue-800 dark:text-blue-200">Ya tienes una solicitud de viaje activa</p>
+                        <p className="font-semibold text-purple-800 dark:text-purple-200">Ya tienes una solicitud de viaje activa</p>
                         <span className={clsx('text-xs font-medium px-2 py-0.5 rounded-full', RIDER_STATUS_BADGE_STYLES[myActiveRide.rider.status])}>
                           {RIDER_STATUS_LABELS[myActiveRide.rider.status] ?? myActiveRide.rider.status}
                         </span>
@@ -684,7 +566,7 @@ export default function Carpool() {
                         {' · '}
                         conductor {myActiveRide.trip.driver?.full_name ?? 'sin nombre'}
                       </p>
-                      <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                      <p className="mt-1 text-xs text-purple-600 dark:text-purple-400">
                         {describeRideProgress(myActiveRide.trip, myActiveRide.rider.status)}
                       </p>
                     </div>
@@ -693,7 +575,7 @@ export default function Carpool() {
                     <button
                       type="button"
                       onClick={() => setShowActiveRideDetails(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-slate-700 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-slate-700 transition-colors"
                     >
                       <Eye size={14} /> Ver más detalles
                     </button>
@@ -823,7 +705,7 @@ export default function Carpool() {
                               href={googleMapsSearchUrl(trip.meeting_point)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium shrink-0"
+                              className="flex items-center gap-1 text-purple-600 hover:text-purple-700 font-medium shrink-0"
                             >
                               Ver en mapa <ExternalLink size={14} />
                             </a>
@@ -895,7 +777,7 @@ export default function Carpool() {
 
                   {selectedVehicle ? (
                     <div className="mt-3 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center">
                         <Car size={18} />
                       </div>
                       <div>
@@ -955,7 +837,7 @@ export default function Carpool() {
                         href={googleMapsSearchUrl(meetingPoint.trim())}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 text-sm font-medium whitespace-nowrap"
+                        className="flex items-center gap-1 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-purple-600 hover:bg-purple-50 dark:hover:bg-slate-700 text-sm font-medium whitespace-nowrap"
                       >
                         Ver en mapa <ExternalLink size={14} />
                       </a>
@@ -1018,7 +900,7 @@ export default function Carpool() {
                 <button
                   type="submit"
                   disabled={publishing || vehicles.length === 0}
-                  className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 mt-4 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 mt-4 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {publishing ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />}
                   Publicar Viaje
@@ -1083,7 +965,7 @@ export default function Carpool() {
                                     href={googleMapsSearchUrl(trip.meeting_point)}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
+                                    className="flex items-center gap-1 text-purple-600 hover:text-purple-700 font-medium"
                                   >
                                     Ver en mapa <ExternalLink size={12} />
                                   </a>
@@ -1103,7 +985,7 @@ export default function Carpool() {
                                     onClick={() => handleStartTrip(trip)}
                                     disabled={isTripBusy}
                                     title="Marca que ya saliste y vas en camino al punto de encuentro"
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50"
                                   >
                                     {isTripBusy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
                                     Iniciar viaje
@@ -1213,9 +1095,9 @@ export default function Carpool() {
                                 {confirmedRiders.map((rider) => (
                                   <span
                                     key={rider.user_id}
-                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium"
+                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-xs font-medium"
                                   >
-                                    <span className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-[10px] font-bold">
+                                    <span className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-[10px] font-bold">
                                       {initials(rider.user?.full_name)}
                                     </span>
                                     {rider.user?.full_name ?? 'Pasajero'} · {RIDER_STATUS_LABELS[rider.status] ?? rider.status}
@@ -1292,7 +1174,7 @@ export default function Carpool() {
                     href={googleMapsSearchUrl(myActiveRide.trip.meeting_point)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium shrink-0 text-xs"
+                    className="flex items-center gap-1 text-purple-600 hover:text-purple-700 font-medium shrink-0 text-xs"
                   >
                     Ver en mapa <ExternalLink size={12} />
                   </a>
@@ -1460,148 +1342,6 @@ export default function Carpool() {
           </motion.div>
         </div>
       ) : null}
-
-      <AnimatePresence>
-        {confirmDialog ? (
-          <motion.div
-            key="confirm-dialog"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
-            onClick={() => setConfirmDialog(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-sm w-full p-5"
-            >
-              <div className="flex items-start gap-3">
-                <span
-                  className={clsx(
-                    'w-10 h-10 rounded-full flex items-center justify-center shrink-0',
-                    confirmDialog.tone === 'danger'
-                      ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                      : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-                  )}
-                >
-                  {confirmDialog.tone === 'danger' ? <AlertCircle size={20} /> : <Info size={20} />}
-                </span>
-                <div className="flex-1 pt-0.5">
-                  <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">{confirmDialog.title}</h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-300 mt-1.5">{confirmDialog.description}</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-2 mt-5">
-                <button
-                  type="button"
-                  onClick={() => setConfirmDialog(null)}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmDialog.onConfirm}
-                  className={clsx(
-                    'px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors',
-                    confirmDialog.tone === 'danger'
-                      ? 'bg-red-600 hover:bg-red-700'
-                      : 'bg-blue-600 hover:bg-blue-700',
-                  )}
-                >
-                  {confirmDialog.confirmLabel}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {reasonDialog ? (
-          <motion.div
-            key="reason-dialog"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
-            onClick={() => setReasonDialog(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-sm w-full p-5"
-            >
-              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">{reasonDialog.title}</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-300 mt-1.5">{reasonDialog.description}</p>
-              <textarea
-                value={reasonDialogValue}
-                onChange={(e) => {
-                  setReasonDialogValue(e.target.value);
-                  if (reasonDialogError) setReasonDialogError('');
-                }}
-                placeholder={reasonDialog.placeholder}
-                rows={3}
-                className="mt-3 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
-              />
-              {reasonDialogError ? (
-                <p className="text-xs text-red-600 dark:text-red-400 mt-1.5">{reasonDialogError}</p>
-              ) : null}
-              <div className="flex items-center justify-end gap-2 mt-4">
-                <button
-                  type="button"
-                  onClick={() => setReasonDialog(null)}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const trimmed = reasonDialogValue.trim();
-                    if (!trimmed) {
-                      setReasonDialogError('Indica un motivo antes de continuar');
-                      return;
-                    }
-                    reasonDialog.onSubmit(trimmed);
-                  }}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors"
-                >
-                  {reasonDialog.confirmLabel}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
-      <div className="fixed bottom-6 right-6 z-[80] flex flex-col-reverse gap-2 items-end pointer-events-none">
-        <AnimatePresence>
-          {actionMessage ? (
-            <FloatingMessage key="action-success" variant="success" message={actionMessage} onDismiss={() => setActionMessage('')} />
-          ) : null}
-          {actionError ? (
-            <FloatingMessage key="action-error" variant="error" message={actionError} onDismiss={() => setActionError('')} />
-          ) : null}
-          {publishSuccess ? (
-            <FloatingMessage key="publish-success" variant="success" message={publishSuccess} onDismiss={() => setPublishSuccess('')} />
-          ) : null}
-          {publishError ? (
-            <FloatingMessage key="publish-error" variant="error" message={publishError} onDismiss={() => setPublishError('')} />
-          ) : null}
-          {tripActionMessage ? (
-            <FloatingMessage key="trip-success" variant="success" message={tripActionMessage} onDismiss={() => setTripActionMessage('')} />
-          ) : null}
-          {tripActionError ? (
-            <FloatingMessage key="trip-error" variant="error" message={tripActionError} onDismiss={() => setTripActionError('')} />
-          ) : null}
-        </AnimatePresence>
-      </div>
     </div>
   );
 }

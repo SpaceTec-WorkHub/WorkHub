@@ -7,6 +7,7 @@ import { clsx } from 'clsx';
 import { getCurrentUserId } from '../../services/auth';
 import { ApiSpace, getSpace } from '../../services/space';
 import { createReservation, getReservationSpaces } from '../../services/reservation';
+import { useToast } from '../components/feedback/ToastProvider';
 
 // ── Tipos para el panel de parking ───────────────────────────────────────────
 
@@ -175,7 +176,7 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
     else if (stage === 'floor') { setStage('building'); setSelectedBuilding(null); }
   };
 
-  const nodeCardClass = 'group rounded-3xl border border-amber-200 bg-amber-50 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-amber-900/30 dark:bg-amber-950/20';
+  const nodeCardClass = 'group rounded-3xl border border-purple-200 bg-purple-50 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-purple-900/30 dark:bg-purple-950/20';
 
   if (!isOpen) return null;
 
@@ -187,7 +188,7 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
         {/* Header */}
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
           <div>
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
               <Car size={13} />
               Estacionamientos
             </div>
@@ -207,10 +208,10 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
             </button>
           )}
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
-            <button type="button" className={clsx('rounded-full px-2.5 py-1', stage === 'building' ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300')} onClick={() => { setStage('building'); setSelectedBuilding(null); setSelectedFloor(null); setSelectedZone(null); }}>Edificios</button>
-            {selectedBuilding && (<><span className="text-slate-300">›</span><button type="button" className={clsx('rounded-full px-2.5 py-1', stage === 'floor' ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300')} onClick={() => { setStage('floor'); setSelectedFloor(null); setSelectedZone(null); }}>{selectedBuilding.name}</button></>)}
-            {selectedFloor && (<><span className="text-slate-300">›</span><button type="button" className={clsx('rounded-full px-2.5 py-1', stage === 'zone' ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300')} onClick={() => { setStage('zone'); setSelectedZone(null); }}>Piso {selectedFloor.name}</button></>)}
-            {selectedZone && stage === 'space' && (<><span className="text-slate-300">›</span><span className="rounded-full bg-amber-600 px-2.5 py-1 text-white">Zona {selectedZone.name}</span></>)}
+            <button type="button" className={clsx('rounded-full px-2.5 py-1', stage === 'building' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300')} onClick={() => { setStage('building'); setSelectedBuilding(null); setSelectedFloor(null); setSelectedZone(null); }}>Edificios</button>
+            {selectedBuilding && (<><span className="text-slate-300">›</span><button type="button" className={clsx('rounded-full px-2.5 py-1', stage === 'floor' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300')} onClick={() => { setStage('floor'); setSelectedFloor(null); setSelectedZone(null); }}>{selectedBuilding.name}</button></>)}
+            {selectedFloor && (<><span className="text-slate-300">›</span><button type="button" className={clsx('rounded-full px-2.5 py-1', stage === 'zone' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300')} onClick={() => { setStage('zone'); setSelectedZone(null); }}>Piso {selectedFloor.name}</button></>)}
+            {selectedZone && stage === 'space' && (<><span className="text-slate-300">›</span><span className="rounded-full bg-purple-600 px-2.5 py-1 text-white">Zona {selectedZone.name}</span></>)}
           </div>
         </div>
 
@@ -228,7 +229,7 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
                 }).length;
                 return (
                   <button key={building.id} type="button" onClick={() => { setSelectedBuilding(building); setStage('floor'); }} className={nodeCardClass}>
-                    <div className="mb-3 flex items-center gap-3"><div className="rounded-2xl bg-amber-100 p-2.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"><Building2 size={18} /></div><ChevronRight size={18} className="ml-auto text-slate-300 transition group-hover:translate-x-1 group-hover:text-amber-500" /></div>
+                    <div className="mb-3 flex items-center gap-3"><div className="rounded-2xl bg-purple-100 p-2.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200"><Building2 size={18} /></div><ChevronRight size={18} className="ml-auto text-slate-300 transition group-hover:translate-x-1 group-hover:text-purple-500" /></div>
                     <h3 className="font-bold text-slate-900 dark:text-white">{building.name}</h3>
                     <p className="mt-1 text-xs text-slate-500">{building.floors.length} piso(s)</p>
                     <div className="mt-3 flex gap-2 text-[11px] font-semibold"><span className="rounded-full bg-white/80 px-2.5 py-1 text-emerald-700 dark:bg-slate-950/70">{available} libres</span><span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-600 dark:bg-slate-950/70">{all.length - available} no libres</span></div>
@@ -246,7 +247,7 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
                 }).length;
                 return (
                   <button key={floor.key} type="button" onClick={() => { setSelectedFloor(floor); setStage('zone'); }} className={nodeCardClass}>
-                    <div className="mb-3 flex items-center gap-3"><div className="rounded-2xl bg-amber-100 p-2.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"><Car size={18} /></div><ChevronRight size={18} className="ml-auto text-slate-300 transition group-hover:translate-x-1 group-hover:text-amber-500" /></div>
+                    <div className="mb-3 flex items-center gap-3"><div className="rounded-2xl bg-purple-100 p-2.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200"><Car size={18} /></div><ChevronRight size={18} className="ml-auto text-slate-300 transition group-hover:translate-x-1 group-hover:text-purple-500" /></div>
                     <h3 className="font-bold text-slate-900 dark:text-white">Piso {floor.name}</h3>
                     <p className="mt-1 text-xs text-slate-500">{floor.zones.length} zona(s)</p>
                     <div className="mt-3 flex gap-2 text-[11px] font-semibold"><span className="rounded-full bg-white/80 px-2.5 py-1 text-emerald-700 dark:bg-slate-950/70">{available} libres</span><span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-600 dark:bg-slate-950/70">{all.length - available} no libres</span></div>
@@ -263,7 +264,7 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
                 }).length;
                 return (
                   <button key={zone.key} type="button" onClick={() => { setSelectedZone(zone); setStage('space'); }} className={nodeCardClass}>
-                    <div className="mb-3 flex items-center gap-3"><div className="rounded-2xl bg-amber-100 p-2.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"><Layers3 size={18} /></div><ChevronRight size={18} className="ml-auto text-slate-300 transition group-hover:translate-x-1 group-hover:text-amber-500" /></div>
+                    <div className="mb-3 flex items-center gap-3"><div className="rounded-2xl bg-purple-100 p-2.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200"><Layers3 size={18} /></div><ChevronRight size={18} className="ml-auto text-slate-300 transition group-hover:translate-x-1 group-hover:text-purple-500" /></div>
                     <h3 className="font-bold text-slate-900 dark:text-white">Zona {zone.name}</h3>
                     <p className="mt-1 text-xs text-slate-500">{zone.spaces.length} espacio(s)</p>
                     <div className="mt-3 flex gap-2 text-[11px] font-semibold"><span className="rounded-full bg-white/80 px-2.5 py-1 text-emerald-700 dark:bg-slate-950/70">{available} libres</span><span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-600 dark:bg-slate-950/70">{zone.spaces.length - available} no libres</span></div>
@@ -297,14 +298,14 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
                         isAvailable ? 'hover:-translate-y-0.5 hover:shadow-md cursor-pointer' : 'cursor-not-allowed',
                         effectiveStatus === 'available' ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                           : effectiveStatus === 'occupied' ? 'border-red-200 bg-red-50 text-red-700 opacity-70'
-                          : effectiveStatus === 'maintenance' ? 'border-amber-200 bg-amber-50 text-amber-700 opacity-70'
+                          : effectiveStatus === 'maintenance' ? 'border-purple-200 bg-purple-50 text-purple-700 opacity-70'
                           : 'border-slate-200 bg-slate-100 text-slate-500 opacity-60',
-                        isSelected && 'ring-2 ring-blue-600 ring-offset-2 ring-offset-white dark:ring-offset-slate-900',
+                        isSelected && 'ring-2 ring-purple-600 ring-offset-2 ring-offset-white dark:ring-offset-slate-900',
                       )}
                     >
                       <span className="text-sm font-bold leading-tight">{space.code}</span>
                       <span className="text-[10px] font-semibold uppercase tracking-[0.15em] opacity-70">{parkingSpaceStatusLabel[effectiveStatus]}</span>
-                      {isSelected && <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-bold text-white shadow-sm">✓</span>}
+                      {isSelected && <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-[9px] font-bold text-white shadow-sm">✓</span>}
                     </button>
                   );
                 })}
@@ -317,7 +318,7 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
         <div className="flex flex-wrap gap-4 border-t border-slate-100 px-5 py-3 dark:border-slate-800">
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700"><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" /> Libre</span>
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-600"><span className="h-2.5 w-2.5 rounded-full bg-red-400" /> Ocupado</span>
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700"><span className="h-2.5 w-2.5 rounded-full bg-amber-400" /> Mantenimiento</span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-purple-700"><span className="h-2.5 w-2.5 rounded-full bg-purple-400" /> Mantenimiento</span>
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="h-2.5 w-2.5 rounded-full bg-slate-400" /> Bloqueado</span>
         </div>
       </div>
@@ -347,8 +348,7 @@ export default function Reservation() {
   });
 
   const [allSpaces, setAllSpaces] = useState<ApiSpace[]>([]);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const toast = useToast();
   const [guests, setGuests] = useState<{ name: string; email?: string; extra_parking_space_id?: number }[]>([]);
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [parkingPanelGuestIdx, setParkingPanelGuestIdx] = useState<number | null>(null);
@@ -401,7 +401,7 @@ export default function Reservation() {
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-white flex items-center justify-center p-4">
         <div className="w-[min(96vw,480px)] space-y-6 rounded-3xl border border-slate-200 bg-white p-8 shadow-xl text-center dark:border-slate-800 dark:bg-slate-800">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-200">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-200">
             <MapIcon size={32} />
           </div>
           <div>
@@ -413,7 +413,7 @@ export default function Reservation() {
           <button
             type="button"
             onClick={() => navigate('/map')}
-            className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+            className="w-full rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
           >
             Ir al mapa
           </button>
@@ -429,18 +429,16 @@ export default function Reservation() {
     const endTime = reservationContext.endTime;
 
     if (!date || !reservationContext.spaceId || !startTime || !endTime) {
-      setErrorMessage('Faltan datos de la reserva. Vuelve al mapa y selecciona el espacio.');
+      toast.error('Faltan datos de la reserva. Vuelve al mapa y selecciona el espacio.');
       return;
     }
 
     // Reserva de invitado: requiere nombre
     if (reservationContext.isGuestReservation) {
       if (!guestName.trim()) {
-        setErrorMessage('El nombre del invitado es obligatorio.');
+        toast.error('El nombre del invitado es obligatorio.');
         return;
       }
-      setErrorMessage('');
-      setSuccessMessage('');
       try {
         await createReservation({
           start_time: buildLocalDateTime(date, normalizeToHHMM(startTime) ?? startTime).toISOString(),
@@ -449,10 +447,10 @@ export default function Reservation() {
           is_guest_reservation: true,
           guests: [{ name: guestName.trim(), email: guestEmail.trim() || undefined, extra_parking_space_id: guestParkingSpaceId ?? undefined }],
         });
-        setSuccessMessage(`Reserva para ${guestName.trim()} confirmada en ${reservationContext.spaceCode ?? 'el espacio seleccionado'}.`);
+        toast.success(`Reserva para ${guestName.trim()} confirmada en ${reservationContext.spaceCode ?? 'el espacio seleccionado'}.`);
         setTimeout(() => navigate('/reservations'), 900);
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'No fue posible confirmar la reserva.');
+        toast.error(error instanceof Error ? error.message : 'No fue posible confirmar la reserva.');
       }
       return;
     }
@@ -460,12 +458,9 @@ export default function Reservation() {
     // Reserva propia
     const validGuests = guests.filter((g) => g.name && g.name.trim().length > 0);
     if (guests.length > 0 && validGuests.length !== guests.length) {
-      setErrorMessage('Todos los invitados deben tener un nombre.');
+      toast.error('Todos los invitados deben tener un nombre.');
       return;
     }
-
-    setErrorMessage('');
-    setSuccessMessage('');
 
     try {
       await createReservation({
@@ -476,10 +471,10 @@ export default function Reservation() {
         ...(validGuests.length > 0 ? { guests: validGuests } : {}),
       });
 
-      setSuccessMessage(`Reserva confirmada para ${reservationContext.spaceCode ?? 'el espacio seleccionado'}.`);
+      toast.success(`Reserva confirmada para ${reservationContext.spaceCode ?? 'el espacio seleccionado'}.`);
       setTimeout(() => navigate('/reservations'), 900);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'No fue posible confirmar la reserva.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible confirmar la reserva.');
     }
   };
 
@@ -499,7 +494,7 @@ export default function Reservation() {
                 Reserva para invitado
               </div>
             ) : (
-              <div className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-[11px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+              <div className="inline-flex items-center gap-2 rounded-full bg-purple-100 px-3 py-1 text-[11px] font-semibold text-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
                 <Sparkles size={14} />
                 Confirmación de reserva
               </div>
@@ -513,14 +508,6 @@ export default function Reservation() {
                 : 'Revisa los datos y confirma tu reserva.'}
             </p>
           </div>
-
-          {/* Alertas */}
-          {errorMessage ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div>
-          ) : null}
-          {successMessage ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</div>
-          ) : null}
 
           {/* Datos de la reserva */}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -566,9 +553,9 @@ export default function Reservation() {
                 <button
                   type="button"
                   onClick={() => setShowGuestParkingPanel(true)}
-                  className="w-full flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm transition hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/20"
+                  className="w-full flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2.5 text-sm transition hover:bg-purple-100 dark:border-purple-900/40 dark:bg-purple-950/20"
                 >
-                  <Car size={15} className="shrink-0 text-amber-600" />
+                  <Car size={15} className="shrink-0 text-purple-600" />
                   <span className="flex-1 text-left font-medium text-slate-700 dark:text-slate-200">
                     {guestParkingSpaceId
                       ? (allSpaces.find((s) => s.space_id === guestParkingSpaceId)?.code ?? 'Espacio seleccionado')
@@ -600,7 +587,7 @@ export default function Reservation() {
                     <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2 dark:border-slate-700 dark:bg-slate-900/60">
                       <div className="flex items-center gap-2">
                         <input
-                          className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                          className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-purple-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                           placeholder="Nombre *"
                           value={g.name}
                           onChange={(e) => setGuests((prev) => { const next = [...prev]; next[idx] = { ...next[idx], name: e.target.value }; return next; })}
@@ -608,7 +595,7 @@ export default function Reservation() {
                         <button type="button" onClick={() => setGuests((prev) => prev.filter((_, i) => i !== idx))} className="text-sm font-semibold text-red-600 hover:text-red-700">Eliminar</button>
                       </div>
                       <input
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-purple-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                         placeholder="Email (opcional)"
                         value={g.email ?? ''}
                         onChange={(e) => setGuests((prev) => { const next = [...prev]; next[idx] = { ...next[idx], email: e.target.value }; return next; })}
@@ -618,9 +605,9 @@ export default function Reservation() {
                         <button
                           type="button"
                           onClick={() => setParkingPanelGuestIdx(idx)}
-                          className="w-full flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm transition hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/20"
+                          className="w-full flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2.5 text-sm transition hover:bg-purple-100 dark:border-purple-900/40 dark:bg-purple-950/20"
                         >
-                          <Car size={15} className="shrink-0 text-amber-600" />
+                          <Car size={15} className="shrink-0 text-purple-600" />
                           <span className="flex-1 text-left font-medium text-slate-700 dark:text-slate-200">
                             {g.extra_parking_space_id
                               ? (allSpaces.find((s) => s.space_id === g.extra_parking_space_id)?.code ?? 'Espacio seleccionado')
@@ -646,7 +633,7 @@ export default function Reservation() {
                   <p className="text-sm text-slate-500">
                     {guests.length > 0 ? `${guests.length} invitado(s) añadido(s).` : 'Sin invitados añadidos.'}
                   </p>
-                  <button type="button" onClick={() => setShowGuestForm(true)} className="rounded-2xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                  <button type="button" onClick={() => setShowGuestForm(true)} className="rounded-2xl bg-purple-600 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-700">
                     {guests.length > 0 ? 'Editar invitados' : 'Añadir invitados'}
                   </button>
                 </div>
@@ -656,7 +643,7 @@ export default function Reservation() {
 
           {/* Evento vinculado (solo reservas propias) */}
           {!reservationContext.isGuestReservation && reservationContext.eventId ? (
-            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-[13px] text-blue-700">
+            <div className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-[13px] text-purple-700">
               Reserva vinculada al evento #{reservationContext.eventId}.
             </div>
           ) : null}
@@ -666,7 +653,7 @@ export default function Reservation() {
             <button type="button" onClick={() => navigate('/map')} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900">
               Volver al mapa
             </button>
-            <button type="button" onClick={handleConfirm} className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">
+            <button type="button" onClick={handleConfirm} className="rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700">
               Confirmar reserva
             </button>
           </div>

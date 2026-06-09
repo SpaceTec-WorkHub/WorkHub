@@ -20,6 +20,8 @@ import {
   Monitor,
 } from 'lucide-react';
 import { isAdminUser, getCurrentUserId } from '../../services/auth';
+import { useToast } from '../components/feedback/ToastProvider';
+import { useConfirm } from '../components/feedback/ConfirmProvider';
 import {
   createGamificationReward,
   createBuilding,
@@ -96,6 +98,8 @@ const eventStatusOptions: Array<{ value: EventStatus; label: string }> = [
 ];
 
 export default function Admin() {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [zones, setZones] = useState<ZoneOption[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [sites, setSites] = useState<AdminSiteRecord[]>([]);
@@ -133,7 +137,6 @@ export default function Admin() {
   const [spaceAccessible, setSpaceAccessible] = useState(false);
   const [spacePriority, setSpacePriority] = useState(false);
   const [hierarchyActionLoading, setHierarchyActionLoading] = useState(false);
-  const [hierarchyMessage, setHierarchyMessage] = useState('');
   const [spacePickerOpen, setSpacePickerOpen] = useState(false);
   const [spacePickerTab, setSpacePickerTab] = useState<'all' | 'desk' | 'parking'>('all');
   const [spacePickerSearch, setSpacePickerSearch] = useState('');
@@ -147,14 +150,12 @@ export default function Admin() {
   const [editingBlockStartTime, setEditingBlockStartTime] = useState('');
   const [editingBlockEndTime, setEditingBlockEndTime] = useState('');
   const [blockActionLoading, setBlockActionLoading] = useState(false);
-  const [blockMessage, setBlockMessage] = useState('');
 
   const [emergencyReason, setEmergencyReason] = useState('');
   const [emergencyStartTime, setEmergencyStartTime] = useState('');
   const [emergencyIndefinite, setEmergencyIndefinite] = useState(true);
   const [emergencyEndTime, setEmergencyEndTime] = useState('');
   const [emergencyLoading, setEmergencyLoading] = useState(false);
-  const [emergencyMessage, setEmergencyMessage] = useState('');
 
   const [eventTitle, setEventTitle] = useState('Town hall / evento especial');
   const [eventZoneId, setEventZoneId] = useState<number | null>(null);
@@ -163,7 +164,6 @@ export default function Admin() {
   const [eventStartTime, setEventStartTime] = useState('');
   const [eventEndTime, setEventEndTime] = useState('');
   const [eventLoading, setEventLoading] = useState(false);
-  const [eventMessage, setEventMessage] = useState('');
 
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
@@ -179,7 +179,6 @@ export default function Admin() {
   const [managedEventExpectedAttendees, setManagedEventExpectedAttendees] = useState('');
   const [managedEventStatus, setManagedEventStatus] = useState<EventStatus>('planned');
   const [eventManagerLoading, setEventManagerLoading] = useState(false);
-  const [eventManagerMessage, setEventManagerMessage] = useState('');
   const [userNeeds, setUserNeeds] = useState<UserNeedRecord[]>([]);
   const [userNeedsLoading, setUserNeedsLoading] = useState(true);
   const [userNeedsError, setUserNeedsError] = useState('');
@@ -194,14 +193,12 @@ export default function Admin() {
   const [managedUserNeedUserId, setManagedUserNeedUserId] = useState('');
   const [managedUserNeedPriorityLevelId, setManagedUserNeedPriorityLevelId] = useState('');
   const [userNeedManagerLoading, setUserNeedManagerLoading] = useState(false);
-  const [userNeedManagerMessage, setUserNeedManagerMessage] = useState('');
 
   const [rewards, setRewards] = useState<GamificationRewardsResponse['rewards']>([]);
   const [rewardsPeriod, setRewardsPeriod] = useState('');
   const [rewardsLoading, setRewardsLoading] = useState(true);
   const [rewardsError, setRewardsError] = useState('');
   const [rewardSaving, setRewardSaving] = useState(false);
-  const [rewardMessage, setRewardMessage] = useState('');
   const [editingRewardId, setEditingRewardId] = useState<number | null>(null);
   const [rewardTitle, setRewardTitle] = useState('');
   const [rewardDescription, setRewardDescription] = useState('');
@@ -212,7 +209,6 @@ export default function Admin() {
   const [usersError, setUsersError] = useState('');
   const [userManagerOpen, setUserManagerOpen] = useState(false);
   const [userActionLoading, setUserActionLoading] = useState(false);
-  const [userMessage, setUserMessage] = useState('');
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [nombre, setNombre] = useState('');
   const [correo, setCorreo] = useState('');
@@ -290,7 +286,6 @@ export default function Admin() {
     setEditingBuildingId(null);
     setBuildingName('');
     setBuildingSiteId(String(sites[0]?.site_id ?? ''));
-    setHierarchyMessage('');
   };
 
   const resetFloorForm = () => {
@@ -298,14 +293,12 @@ export default function Admin() {
     setFloorName('');
     setFloorBuildingId(String(hierarchyBuildings[0]?.building_id ?? ''));
     setFloorType('office');
-    setHierarchyMessage('');
   };
 
   const resetZoneForm = () => {
     setEditingZoneId(null);
     setZoneName('');
     setZoneFloorId(String(hierarchyFloors[0]?.floor_id ?? ''));
-    setHierarchyMessage('');
   };
 
   const resetSpaceForm = () => {
@@ -316,7 +309,6 @@ export default function Admin() {
     setSpaceStatus('available');
     setSpaceAccessible(false);
     setSpacePriority(false);
-    setHierarchyMessage('');
   };
 
   const openBuildingEditor = (building: AdminBuildingRecord) => {
@@ -324,7 +316,7 @@ export default function Admin() {
     setBuildingName(building.name);
     setBuildingSiteId(String(building.site_id));
     setHierarchyManagerOpen(true);
-    setHierarchyMessage('Editando edificio seleccionado.');
+    toast.info('Editando edificio seleccionado.');
   };
 
   const openFloorEditor = (floor: AdminFloorRecord) => {
@@ -333,7 +325,7 @@ export default function Admin() {
     setFloorBuildingId(String(floor.building_id));
     setFloorType(floor.floor_type);
     setHierarchyManagerOpen(true);
-    setHierarchyMessage('Editando piso seleccionado.');
+    toast.info('Editando piso seleccionado.');
   };
 
   const openZoneEditor = (zone: AdminZoneRecord) => {
@@ -341,7 +333,7 @@ export default function Admin() {
     setZoneName(zone.name);
     setZoneFloorId(String(zone.floor_id));
     setHierarchyManagerOpen(true);
-    setHierarchyMessage('Editando zona seleccionada.');
+    toast.info('Editando zona seleccionada.');
   };
 
   const openSpaceEditor = (space: AdminSpaceRecord) => {
@@ -353,7 +345,7 @@ export default function Admin() {
     setSpaceAccessible(space.is_accessible);
     setSpacePriority(space.is_priority);
     setHierarchyManagerOpen(true);
-    setHierarchyMessage('Editando espacio seleccionado.');
+    toast.info('Editando espacio seleccionado.');
   };
 
   const openHierarchyManager = () => {
@@ -410,7 +402,6 @@ export default function Admin() {
     setUserType('internal');
     setUserStatus('active');
     setPassword('');
-    setUserMessage('');
   };
 
   const openUserEditor = (user: AdminUserRecord) => {
@@ -421,7 +412,7 @@ export default function Admin() {
     setUserType(user.user_type);
     setUserStatus(user.status);
     setPassword('');
-    setUserMessage('Editando usuario seleccionado.');
+    toast.info('Editando usuario seleccionado.');
     setUserManagerOpen(true);
   };
 
@@ -429,17 +420,16 @@ export default function Admin() {
     event.preventDefault();
 
     if (!nombre.trim() || !correo.trim()) {
-      setUserMessage('Completa nombre y correo.');
+      toast.error('Completa nombre y correo.');
       return;
     }
 
     if (!editingUserId && !password.trim()) {
-      setUserMessage('La contraseña es obligatoria para crear usuarios.');
+      toast.error('La contraseña es obligatoria para crear usuarios.');
       return;
     }
 
     setUserActionLoading(true);
-    setUserMessage('');
 
     try {
       const payload = {
@@ -454,16 +444,16 @@ export default function Admin() {
 
       if (editingUserId) {
         await updateUser(editingUserId, payload);
-        setUserMessage('Usuario actualizado correctamente.');
+        toast.success('Usuario actualizado correctamente.');
       } else {
         await createUser(payload as Parameters<typeof createUser>[0]);
-        setUserMessage('Usuario creado correctamente.');
+        toast.success('Usuario creado correctamente.');
       }
 
       await cargarUsuarios();
       resetUserForm();
     } catch (error) {
-      setUserMessage(error instanceof Error ? error.message : 'No fue posible guardar el usuario.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible guardar el usuario.');
     } finally {
       setUserActionLoading(false);
     }
@@ -471,7 +461,6 @@ export default function Admin() {
 
   const handleUserDelete = async (userId: number) => {
     setUserActionLoading(true);
-    setUserMessage('');
 
     try {
       await deleteUser(userId);
@@ -479,9 +468,9 @@ export default function Admin() {
       if (editingUserId === userId) {
         resetUserForm();
       }
-      setUserMessage('Usuario eliminado correctamente.');
+      toast.success('Usuario eliminado correctamente.');
     } catch (error) {
-      setUserMessage(error instanceof Error ? error.message : 'No fue posible eliminar el usuario.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible eliminar el usuario.');
     } finally {
       setUserActionLoading(false);
     }
@@ -594,7 +583,6 @@ export default function Admin() {
   setRewardTitle('');
   setRewardDescription('');
   setRewardPoints(50);
-  setRewardMessage('');
 };
 
   const refreshRewards = async () => {
@@ -629,7 +617,6 @@ export default function Admin() {
     setManagedEventEndTime('');
     setManagedEventExpectedAttendees('');
     setManagedEventStatus('planned');
-    setEventManagerMessage('');
   };
 
   const resetUserNeedForm = () => {
@@ -641,7 +628,6 @@ export default function Admin() {
     setManagedUserNeedStatus('active');
     setManagedUserNeedUserId(String(usuarios[0]?.user_id ?? ''));
     setManagedUserNeedPriorityLevelId(String(priorityLevels[0]?.priority_level_id ?? ''));
-    setUserNeedManagerMessage('');
   };
 
   const openEventEditor = (eventRecord: EventRecord) => {
@@ -658,7 +644,7 @@ export default function Admin() {
         : '',
     );
     setManagedEventStatus(eventRecord.status);
-    setEventManagerMessage('Editando evento seleccionado.');
+    toast.info('Editando evento seleccionado.');
     setEventManagerOpen(true);
   };
 
@@ -671,7 +657,7 @@ export default function Admin() {
     setManagedUserNeedStatus(userNeed.status);
     setManagedUserNeedUserId(String(userNeed.user?.user_id ?? ''));
     setManagedUserNeedPriorityLevelId(String(userNeed.priorityLevel?.priority_level_id ?? ''));
-    setUserNeedManagerMessage('Editando necesidad seleccionada.');
+    toast.info('Editando necesidad seleccionada.');
     setUserNeedManagerOpen(true);
   };
 
@@ -679,28 +665,27 @@ export default function Admin() {
     event.preventDefault();
 
     if (!buildingName.trim() || !buildingSiteId) {
-      setHierarchyMessage('Completa el nombre del edificio y el site padre.');
+      toast.error('Completa el nombre del edificio y el site padre.');
       return;
     }
 
     setHierarchyActionLoading(true);
-    setHierarchyMessage('');
 
     try {
       const payload = { name: buildingName.trim(), site_id: Number(buildingSiteId) };
 
       if (editingBuildingId) {
         await updateBuilding(editingBuildingId, payload);
-        setHierarchyMessage('Edificio actualizado correctamente.');
+        toast.success('Edificio actualizado correctamente.');
       } else {
         await createBuilding(payload);
-        setHierarchyMessage('Edificio creado correctamente.');
+        toast.success('Edificio creado correctamente.');
       }
 
       await refreshHierarchy();
       resetBuildingForm();
     } catch (error) {
-      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible guardar el edificio.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible guardar el edificio.');
     } finally {
       setHierarchyActionLoading(false);
     }
@@ -708,7 +693,6 @@ export default function Admin() {
 
   const handleBuildingDelete = async (buildingId: number) => {
     setHierarchyActionLoading(true);
-    setHierarchyMessage('');
 
     try {
       await deleteBuilding(buildingId);
@@ -716,9 +700,9 @@ export default function Admin() {
       if (editingBuildingId === buildingId) {
         resetBuildingForm();
       }
-      setHierarchyMessage('Edificio eliminado correctamente.');
+      toast.success('Edificio eliminado correctamente.');
     } catch (error) {
-      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible eliminar el edificio.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible eliminar el edificio.');
     } finally {
       setHierarchyActionLoading(false);
     }
@@ -728,28 +712,27 @@ export default function Admin() {
     event.preventDefault();
 
     if (!floorName.trim() || !floorBuildingId) {
-      setHierarchyMessage('Completa el nombre del piso y su edificio padre.');
+      toast.error('Completa el nombre del piso y su edificio padre.');
       return;
     }
 
     setHierarchyActionLoading(true);
-    setHierarchyMessage('');
 
     try {
       const payload = { name: floorName.trim(), building_id: Number(floorBuildingId), floor_type: floorType };
 
       if (editingFloorId) {
         await updateFloor(editingFloorId, payload);
-        setHierarchyMessage('Piso actualizado correctamente.');
+        toast.success('Piso actualizado correctamente.');
       } else {
         await createFloor(payload);
-        setHierarchyMessage('Piso creado correctamente.');
+        toast.success('Piso creado correctamente.');
       }
 
       await refreshHierarchy();
       resetFloorForm();
     } catch (error) {
-      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible guardar el piso.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible guardar el piso.');
     } finally {
       setHierarchyActionLoading(false);
     }
@@ -757,7 +740,6 @@ export default function Admin() {
 
   const handleFloorDelete = async (floorId: number) => {
     setHierarchyActionLoading(true);
-    setHierarchyMessage('');
 
     try {
       await deleteFloor(floorId);
@@ -765,9 +747,9 @@ export default function Admin() {
       if (editingFloorId === floorId) {
         resetFloorForm();
       }
-      setHierarchyMessage('Piso eliminado correctamente.');
+      toast.success('Piso eliminado correctamente.');
     } catch (error) {
-      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible eliminar el piso.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible eliminar el piso.');
     } finally {
       setHierarchyActionLoading(false);
     }
@@ -777,28 +759,27 @@ export default function Admin() {
     event.preventDefault();
 
     if (!zoneName.trim() || !zoneFloorId) {
-      setHierarchyMessage('Completa el nombre de la zona y su piso padre.');
+      toast.error('Completa el nombre de la zona y su piso padre.');
       return;
     }
 
     setHierarchyActionLoading(true);
-    setHierarchyMessage('');
 
     try {
       const payload = { name: zoneName.trim(), floor_id: Number(zoneFloorId) };
 
       if (editingZoneId) {
         await updateZone(editingZoneId, payload);
-        setHierarchyMessage('Zona actualizada correctamente.');
+        toast.success('Zona actualizada correctamente.');
       } else {
         await createZone(payload);
-        setHierarchyMessage('Zona creada correctamente.');
+        toast.success('Zona creada correctamente.');
       }
 
       await refreshHierarchy();
       resetZoneForm();
     } catch (error) {
-      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible guardar la zona.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible guardar la zona.');
     } finally {
       setHierarchyActionLoading(false);
     }
@@ -806,7 +787,6 @@ export default function Admin() {
 
   const handleZoneDelete = async (zoneId: number) => {
     setHierarchyActionLoading(true);
-    setHierarchyMessage('');
 
     try {
       await deleteZone(zoneId);
@@ -814,9 +794,9 @@ export default function Admin() {
       if (editingZoneId === zoneId) {
         resetZoneForm();
       }
-      setHierarchyMessage('Zona eliminada correctamente.');
+      toast.success('Zona eliminada correctamente.');
     } catch (error) {
-      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible eliminar la zona.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible eliminar la zona.');
     } finally {
       setHierarchyActionLoading(false);
     }
@@ -826,12 +806,11 @@ export default function Admin() {
     event.preventDefault();
 
     if (!spaceCode.trim() || !spaceZoneId || !spaceTypeId) {
-      setHierarchyMessage('Completa el código del espacio, su zona padre y el tipo.');
+      toast.error('Completa el código del espacio, su zona padre y el tipo.');
       return;
     }
 
     setHierarchyActionLoading(true);
-    setHierarchyMessage('');
 
     try {
       const payload = {
@@ -845,16 +824,16 @@ export default function Admin() {
 
       if (editingSpaceId) {
         await updateSpace(editingSpaceId, payload);
-        setHierarchyMessage('Espacio actualizado correctamente.');
+        toast.success('Espacio actualizado correctamente.');
       } else {
         await createSpace(payload);
-        setHierarchyMessage('Espacio creado correctamente.');
+        toast.success('Espacio creado correctamente.');
       }
 
       await refreshHierarchy();
       resetSpaceForm();
     } catch (error) {
-      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible guardar el espacio.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible guardar el espacio.');
     } finally {
       setHierarchyActionLoading(false);
     }
@@ -862,7 +841,6 @@ export default function Admin() {
 
   const handleSpaceDelete = async (spaceId: number) => {
     setHierarchyActionLoading(true);
-    setHierarchyMessage('');
 
     try {
       await deleteSpace(spaceId);
@@ -870,9 +848,9 @@ export default function Admin() {
       if (editingSpaceId === spaceId) {
         resetSpaceForm();
       }
-      setHierarchyMessage('Espacio eliminado correctamente.');
+      toast.success('Espacio eliminado correctamente.');
     } catch (error) {
-      setHierarchyMessage(error instanceof Error ? error.message : 'No fue posible eliminar el espacio.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible eliminar el espacio.');
     } finally {
       setHierarchyActionLoading(false);
     }
@@ -883,7 +861,7 @@ export default function Admin() {
     setEditingBlockReason(block.reason);
     setEditingBlockStartTime(toDateTimeLocalValue(block.start_time));
     setEditingBlockEndTime(block.end_time ? toDateTimeLocalValue(block.end_time) : '');
-    setBlockMessage('Editando bloqueo seleccionado.');
+    toast.info('Editando bloqueo seleccionado.');
     setBlockManagerOpen(true);
   };
 
@@ -892,18 +870,16 @@ export default function Admin() {
     setEditingBlockReason('');
     setEditingBlockStartTime('');
     setEditingBlockEndTime('');
-    setBlockMessage('');
   };
 
   const handleEmergencySubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (selectedBlockSpaces.length === 0 || !emergencyReason.trim() || !emergencyStartTime) {
-      setEmergencyMessage('Selecciona al menos un espacio, justificación y fecha de inicio.');
+      toast.error('Selecciona al menos un espacio, justificación y fecha de inicio.');
       return;
     }
 
     setEmergencyLoading(true);
-    setEmergencyMessage('');
 
     try {
       const response = await createSpaceBlocks({
@@ -915,7 +891,7 @@ export default function Admin() {
           : { end_time: new Date(emergencyEndTime).toISOString() }),
       });
 
-      setEmergencyMessage(
+      toast.success(
         `Bloqueo creado. Se bloquearon ${response.blocks.length} espacios y se cancelaron ${response.cancelledReservations} reservas.`,
       );
       setEmergencyReason('');
@@ -925,7 +901,7 @@ export default function Admin() {
       setSelectedBlockSpaces([]);
       await refreshBlocks();
     } catch (error) {
-      setEmergencyMessage(error instanceof Error ? error.message : 'No fue posible crear el bloqueo.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible crear el bloqueo.');
     } finally {
       setEmergencyLoading(false);
     }
@@ -935,12 +911,11 @@ export default function Admin() {
     event.preventDefault();
 
     if (!editingBlockId || !editingBlockReason.trim() || !editingBlockStartTime) {
-      setBlockMessage('Completa la justificación y la fecha de inicio.');
+      toast.error('Completa la justificación y la fecha de inicio.');
       return;
     }
 
     setBlockActionLoading(true);
-    setBlockMessage('');
 
     try {
       await updateBlock(editingBlockId, {
@@ -950,10 +925,10 @@ export default function Admin() {
       });
 
       await refreshBlocks();
-      setBlockMessage('Bloqueo actualizado correctamente.');
+      toast.success('Bloqueo actualizado correctamente.');
       resetBlockEditor();
     } catch (error) {
-      setBlockMessage(error instanceof Error ? error.message : 'No fue posible actualizar el bloqueo.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible actualizar el bloqueo.');
     } finally {
       setBlockActionLoading(false);
     }
@@ -961,7 +936,6 @@ export default function Admin() {
 
   const handleBlockDelete = async (blockId: number) => {
     setBlockActionLoading(true);
-    setBlockMessage('');
 
     try {
       await deleteBlock(blockId);
@@ -969,9 +943,9 @@ export default function Admin() {
       if (editingBlockId === blockId) {
         resetBlockEditor();
       }
-      setBlockMessage('Bloqueo eliminado correctamente.');
+      toast.success('Bloqueo eliminado correctamente.');
     } catch (error) {
-      setBlockMessage(error instanceof Error ? error.message : 'No fue posible eliminar el bloqueo.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible eliminar el bloqueo.');
     } finally {
       setBlockActionLoading(false);
     }
@@ -980,18 +954,17 @@ export default function Admin() {
   const handleEventSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!eventZoneId || !eventUserNeedId || !eventDate || !eventStartTime || !eventEndTime) {
-      setEventMessage('Completa zona, user need, fecha y horario del evento.');
+      toast.error('Completa zona, user need, fecha y horario del evento.');
       return;
     }
 
     const userId = getCurrentUserId();
     if (!userId) {
-      setEventMessage('No se encontró la sesión administrativa.');
+      toast.error('No se encontró la sesión administrativa.');
       return;
     }
 
     setEventLoading(true);
-    setEventMessage('');
 
     try {
       const response = await createSpecialEventReservations({
@@ -1003,7 +976,7 @@ export default function Admin() {
         end_time: `${eventDate}T${eventEndTime}:00`,
       });
 
-      setEventMessage(
+      toast.success(
         `Evento "${response.event?.title ?? eventTitle}" registrado. ${response.createdReservations ?? 0} reservas generadas y ${response.cancelledReservations ?? 0} reservas previas canceladas.`,
       );
       await refreshEvents();
@@ -1012,7 +985,7 @@ export default function Admin() {
       setEventStartTime('');
       setEventEndTime('');
     } catch (error) {
-      setEventMessage(error instanceof Error ? error.message : 'No fue posible crear el evento especial.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible crear el evento especial.');
     } finally {
       setEventLoading(false);
     }
@@ -1072,17 +1045,16 @@ export default function Admin() {
     event.preventDefault();
 
     if (!editingEventId) {
-      setEventManagerMessage('Selecciona un evento para editarlo.');
+      toast.error('Selecciona un evento para editarlo.');
       return;
     }
 
     if (!managedEventTitle.trim() || !managedEventUserNeedId || !managedEventStartTime || !managedEventEndTime) {
-      setEventManagerMessage('Completa título, user need, inicio y fin.');
+      toast.error('Completa título, user need, inicio y fin.');
       return;
     }
 
     setEventManagerLoading(true);
-    setEventManagerMessage('');
 
     const payload = {
       title: managedEventTitle.trim(),
@@ -1097,12 +1069,12 @@ export default function Admin() {
 
     try {
       await updateEvent(editingEventId, payload);
-      setEventManagerMessage('Evento actualizado correctamente.');
+      toast.success('Evento actualizado correctamente.');
 
       await refreshEvents();
       resetEventForm();
     } catch (error) {
-      setEventManagerMessage(error instanceof Error ? error.message : 'No fue posible guardar el evento.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible guardar el evento.');
     } finally {
       setEventManagerLoading(false);
     }
@@ -1110,7 +1082,6 @@ export default function Admin() {
 
   const handleEventCancel = async (eventId: number) => {
     setEventManagerLoading(true);
-    setEventManagerMessage('');
 
     try {
       const response = await cancelEvent(eventId);
@@ -1118,11 +1089,11 @@ export default function Admin() {
       if (editingEventId === eventId) {
         resetEventForm();
       }
-      setEventManagerMessage(
+      toast.success(
         `Evento cancelado correctamente. ${response.cancelledReservations ?? 0} reservaciones asociadas fueron canceladas.`,
       );
     } catch (error) {
-      setEventManagerMessage(error instanceof Error ? error.message : 'No fue posible cancelar el evento.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible cancelar el evento.');
     } finally {
       setEventManagerLoading(false);
     }
@@ -1132,12 +1103,11 @@ export default function Admin() {
     event.preventDefault();
 
     if (!managedUserNeedType.trim() || !managedUserNeedReason.trim() || !managedUserNeedStartDate || !managedUserNeedEndDate || !managedUserNeedUserId || !managedUserNeedPriorityLevelId) {
-      setUserNeedManagerMessage('Completa tipo, razón, fechas, usuario y prioridad.');
+      toast.error('Completa tipo, razón, fechas, usuario y prioridad.');
       return;
     }
 
     setUserNeedManagerLoading(true);
-    setUserNeedManagerMessage('');
 
     const payload = {
       need_type: managedUserNeedType.trim(),
@@ -1152,31 +1122,35 @@ export default function Admin() {
     try {
       if (editingUserNeedId) {
         await updateUserNeed(editingUserNeedId, payload);
-        setUserNeedManagerMessage('Necesidad actualizada correctamente.');
+        toast.success('Necesidad actualizada correctamente.');
       } else {
         await createUserNeed(payload);
-        setUserNeedManagerMessage('Necesidad creada correctamente.');
+        toast.success('Necesidad creada correctamente.');
       }
 
       const refreshedNeeds = await getUserNeeds();
       setUserNeeds(refreshedNeeds);
       resetUserNeedForm();
     } catch (error) {
-      setUserNeedManagerMessage(error instanceof Error ? error.message : 'No fue posible guardar la necesidad.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible guardar la necesidad.');
     } finally {
       setUserNeedManagerLoading(false);
     }
   };
 
   const handleUserNeedDelete = async (userNeedId: number) => {
-    const confirmed = window.confirm('¿Deseas eliminar esta necesidad?');
+    const confirmed = await confirm({
+      title: 'Eliminar necesidad',
+      description: '¿Deseas eliminar esta necesidad? Esta acción no se puede deshacer.',
+      confirmLabel: 'Sí, eliminar',
+      tone: 'danger',
+    });
 
     if (!confirmed) {
       return;
     }
 
     setUserNeedManagerLoading(true);
-    setUserNeedManagerMessage('');
 
     try {
       await deleteUserNeed(userNeedId);
@@ -1187,9 +1161,9 @@ export default function Admin() {
         resetUserNeedForm();
       }
 
-      setUserNeedManagerMessage('Necesidad eliminada correctamente.');
+      toast.success('Necesidad eliminada correctamente.');
     } catch (error) {
-      setUserNeedManagerMessage(error instanceof Error ? error.message : 'No fue posible eliminar la necesidad.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible eliminar la necesidad.');
     } finally {
       setUserNeedManagerLoading(false);
     }
@@ -1200,12 +1174,11 @@ export default function Admin() {
   setRewardTitle(reward.title);
   setRewardDescription(reward.description);
   setRewardPoints(reward.points);
-  setRewardMessage('Editando premio seleccionado.');
+  toast.info('Editando premio seleccionado.');
 };
 
   const handleRewardDelete = async (rewardId: number) => {
     setRewardSaving(true);
-    setRewardMessage('');
 
     try {
       await deleteGamificationReward(rewardId);
@@ -1213,9 +1186,9 @@ export default function Admin() {
         resetRewardForm();
       }
       await refreshRewards();
-      setRewardMessage('Premio eliminado correctamente.');
+      toast.success('Premio eliminado correctamente.');
     } catch (error) {
-      setRewardMessage(error instanceof Error ? error.message : 'No fue posible eliminar el premio.');
+      toast.error(error instanceof Error ? error.message : 'No fue posible eliminar el premio.');
     } finally {
       setRewardSaving(false);
     }
@@ -1225,12 +1198,11 @@ export default function Admin() {
   event.preventDefault();
 
   if (!rewardTitle.trim() || !rewardDescription.trim()) {
-    setRewardMessage('Completa título y descripción.');
+    toast.error('Completa título y descripción.');
     return;
   }
 
   setRewardSaving(true);
-  setRewardMessage('');
 
   const payload: GamificationRewardPayload = {
     title: rewardTitle.trim(),
@@ -1242,16 +1214,16 @@ export default function Admin() {
   try {
     if (editingRewardId) {
       await updateGamificationReward(editingRewardId, payload);
-      setRewardMessage('Premio actualizado correctamente.');
+      toast.success('Premio actualizado correctamente.');
     } else {
       await createGamificationReward(payload);
-      setRewardMessage('Premio creado correctamente.');
+      toast.success('Premio creado correctamente.');
     }
 
     await refreshRewards();
     resetRewardForm();
   } catch (error) {
-    setRewardMessage(error instanceof Error ? error.message : 'No fue posible guardar el premio.');
+    toast.error(error instanceof Error ? error.message : 'No fue posible guardar el premio.');
   } finally {
     setRewardSaving(false);
   }
@@ -1380,11 +1352,10 @@ export default function Admin() {
               Administrar bloqueos
             </button>
           </form>
-          {emergencyMessage ? <p className="mt-4 text-sm text-slate-600">{emergencyMessage}</p> : null}
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-          <div className="flex items-center gap-3 text-blue-600">
+          <div className="flex items-center gap-3 text-purple-600">
             <Sparkles size={20} />
             <h2 className="font-semibold">Evento especial</h2>
           </div>
@@ -1464,7 +1435,7 @@ export default function Admin() {
             <button
               type="submit"
               disabled={eventLoading || loadingZones}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
               <Calendar size={16} />
               {eventLoading ? 'Creando evento...' : 'Crear evento especial'}
@@ -1486,7 +1457,6 @@ export default function Admin() {
               Gestionar Necesidades
             </button>
           </form>
-          {eventMessage ? <p className="mt-4 text-sm text-slate-600">{eventMessage}</p> : null}
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
@@ -1545,7 +1515,7 @@ export default function Admin() {
                         onClick={() => setSpacePickerTab(tab.id)}
                         className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
                           spacePickerTab === tab.id
-                            ? 'bg-blue-600 text-white'
+                            ? 'bg-purple-600 text-white'
                             : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`}
                       >
@@ -1554,7 +1524,7 @@ export default function Admin() {
                     ))}
                   </div>
 
-                  <label className="flex h-11 min-w-[280px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm shadow-sm focus-within:border-blue-500 dark:border-slate-700 dark:bg-slate-900">
+                  <label className="flex h-11 min-w-[280px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm shadow-sm focus-within:border-purple-500 dark:border-slate-700 dark:bg-slate-900">
                     <Search size={16} className="text-slate-400" />
                     <input
                       value={spacePickerSearch}
@@ -1585,8 +1555,8 @@ export default function Admin() {
                           onClick={() => toggleBlockSpace(space)}
                           className={`flex min-h-[120px] flex-col justify-between rounded-2xl border p-4 text-left shadow-sm transition-all ${
                             selected
-                              ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/30'
-                              : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50'
+                              ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-500/30'
+                              : 'border-slate-200 bg-white hover:border-purple-300 hover:bg-purple-50'
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
@@ -1597,7 +1567,7 @@ export default function Admin() {
                               <h4 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">{space.code}</h4>
                               <p className="mt-1 text-sm text-slate-500">{space.zone?.name ?? 'Sin zona'}</p>
                             </div>
-                            <span className={`flex h-6 w-6 items-center justify-center rounded-full ${selected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                            <span className={`flex h-6 w-6 items-center justify-center rounded-full ${selected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                               {selected ? <Check size={14} /> : '•'}
                             </span>
                           </div>
@@ -1665,7 +1635,7 @@ export default function Admin() {
                   <button
                     type="button"
                     onClick={() => setSpacePickerOpen(false)}
-                    className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+                    className="flex-1 rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700"
                   >
                     Listo
                   </button>
@@ -1688,7 +1658,6 @@ export default function Admin() {
                 type="button"
                 onClick={() => {
                   setHierarchyManagerOpen(false);
-                  setHierarchyMessage('');
                 }}
                 className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
               >
@@ -1819,11 +1788,6 @@ export default function Admin() {
                   <span className="text-xs text-slate-400">{hierarchyActionLoading ? 'Guardando...' : ''}</span>
                 </div>
 
-                {hierarchyMessage ? (
-                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                    {hierarchyMessage}
-                  </div>
-                ) : null}
 
                 <div className="mt-5 space-y-6">
                   <form onSubmit={handleBuildingSave} className="space-y-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
@@ -1836,7 +1800,7 @@ export default function Admin() {
                       <option value="">Selecciona un site</option>
                       {sites.map((site) => <option key={site.site_id} value={site.site_id}>{site.name}</option>)}
                     </select>
-                    <button type="submit" className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">{editingBuildingId ? 'Actualizar edificio' : 'Crear edificio'}</button>
+                    <button type="submit" className="w-full rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700">{editingBuildingId ? 'Actualizar edificio' : 'Crear edificio'}</button>
                   </form>
 
                   <form onSubmit={handleFloorSave} className="space-y-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
@@ -1853,7 +1817,7 @@ export default function Admin() {
                       <option value="office">Oficinas</option>
                       <option value="parking">Estacionamiento</option>
                     </select>
-                    <button type="submit" className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">{editingFloorId ? 'Actualizar piso' : 'Crear piso'}</button>
+                    <button type="submit" className="w-full rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700">{editingFloorId ? 'Actualizar piso' : 'Crear piso'}</button>
                   </form>
 
                   <form onSubmit={handleZoneSave} className="space-y-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
@@ -1866,7 +1830,7 @@ export default function Admin() {
                       <option value="">Selecciona un piso</option>
                       {hierarchyFloors.map((floor) => <option key={floor.floor_id} value={floor.floor_id}>{floor.name} · {floor.building?.name ?? `Edificio ${floor.building_id}`}</option>)}
                     </select>
-                    <button type="submit" className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">{editingZoneId ? 'Actualizar zona' : 'Crear zona'}</button>
+                    <button type="submit" className="w-full rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700">{editingZoneId ? 'Actualizar zona' : 'Crear zona'}</button>
                   </form>
 
                   <form onSubmit={handleSpaceSave} className="space-y-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-700">
@@ -1893,7 +1857,7 @@ export default function Admin() {
                       <label className="inline-flex items-center gap-2"><input type="checkbox" checked={spaceAccessible} onChange={(event) => setSpaceAccessible(event.target.checked)} /> Accesible</label>
                       <label className="inline-flex items-center gap-2"><input type="checkbox" checked={spacePriority} onChange={(event) => setSpacePriority(event.target.checked)} /> Prioridad</label>
                     </div>
-                    <button type="submit" className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">{editingSpaceId ? 'Actualizar espacio' : 'Crear espacio'}</button>
+                    <button type="submit" className="w-full rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700">{editingSpaceId ? 'Actualizar espacio' : 'Crear espacio'}</button>
                   </form>
                 </div>
 
@@ -1961,7 +1925,7 @@ export default function Admin() {
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                                <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-700">{eventStatusOptions.find((option) => option.value === eventRecord.status)?.label ?? eventRecord.status}</span>
+                                <span className="rounded-full bg-purple-100 px-2 py-1 text-purple-700">{eventStatusOptions.find((option) => option.value === eventRecord.status)?.label ?? eventRecord.status}</span>
                                 <span>{userNeedLabel}</span>
                               </div>
                               <h5 className="mt-2 text-base font-bold text-slate-900 dark:text-white">{eventRecord.title}</h5>
@@ -2017,11 +1981,6 @@ export default function Admin() {
                   <span className="text-xs text-slate-400">{eventManagerLoading ? 'Guardando...' : ''}</span>
                 </div>
 
-                {eventManagerMessage ? (
-                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                    {eventManagerMessage}
-                  </div>
-                ) : null}
 
                 <div className="mt-5 space-y-4">
                   <div>
@@ -2128,7 +2087,7 @@ export default function Admin() {
                     <button
                       type="submit"
                       disabled={eventManagerLoading || userNeedsLoading || !editingEventId}
-                      className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                      className="flex-1 rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                     >
                       Guardar cambios
                     </button>
@@ -2191,7 +2150,7 @@ export default function Admin() {
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                              <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-700">{userNeed.status}</span>
+                              <span className="rounded-full bg-purple-100 px-2 py-1 text-purple-700">{userNeed.status}</span>
                               <span>{userNeed.need_type}</span>
                               <span>{userNeed.priorityLevel ? `${userNeed.priorityLevel.name} · ${userNeed.priorityLevel.scale}` : `Priority #${userNeed.priority_level_id}`}</span>
                             </div>
@@ -2244,11 +2203,6 @@ export default function Admin() {
                   <span className="text-xs text-slate-400">{userNeedManagerLoading ? 'Guardando...' : ''}</span>
                 </div>
 
-                {userNeedManagerMessage ? (
-                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                    {userNeedManagerMessage}
-                  </div>
-                ) : null}
 
                 <form onSubmit={handleUserNeedSubmit} className="mt-5 space-y-4">
                   <div>
@@ -2342,7 +2296,7 @@ export default function Admin() {
                     <button
                       type="submit"
                       disabled={userNeedManagerLoading || loadingUsers || !managedUserNeedUserId || !managedUserNeedPriorityLevelId}
-                      className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                      className="flex-1 rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                     >
                       Guardar
                     </button>
@@ -2477,11 +2431,6 @@ export default function Admin() {
                         className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
                       />
                     </div>
-                    {blockMessage ? (
-                      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                        {blockMessage}
-                      </div>
-                    ) : null}
                     <div className="flex gap-3">
                       <button
                         type="button"
@@ -2493,7 +2442,7 @@ export default function Admin() {
                       <button
                         type="submit"
                         disabled={blockActionLoading}
-                        className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                        className="flex-1 rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                       >
                         Guardar
                       </button>
@@ -2537,11 +2486,6 @@ export default function Admin() {
           </div>
         ) : null}
 
-        {rewardMessage ? (
-          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-            {rewardMessage}
-          </div>
-        ) : null}
 
         {rewardsLoading ? (
           <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
@@ -2713,7 +2657,7 @@ export default function Admin() {
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                              <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-700">Usuario</span>
+                              <span className="rounded-full bg-purple-100 px-2 py-1 text-purple-700">Usuario</span>
                               <span>{user.status}</span>
                             </div>
                             <h5 className="mt-2 text-base font-bold text-slate-900 dark:text-white">{user.full_name ?? 'Sin nombre'}</h5>
@@ -2830,11 +2774,6 @@ export default function Admin() {
                     </select>
                   </div>
 
-                  {userMessage ? (
-                    <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                      {userMessage}
-                    </div>
-                  ) : null}
 
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <button
@@ -2847,7 +2786,7 @@ export default function Admin() {
                     <button
                       type="submit"
                       disabled={userActionLoading}
-                      className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400 sm:flex-1"
+                      className="rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-slate-400 sm:flex-1"
                     >
                       {editingUserId ? 'Guardar cambios' : 'Crear usuario'}
                     </button>
