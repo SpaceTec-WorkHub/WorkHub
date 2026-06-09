@@ -8,6 +8,7 @@ import {
   getNotificationsByUser,
   UiNotification,
 } from '../../services/notifications';
+import AIChatBubble from '../components/AIChatBubble';
 
 function useDarkMode() {
   const [isDark, setIsDark] = useState(() => {
@@ -168,6 +169,9 @@ export default function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* AI chat bubble (floating, fixed) */}
+      <AIChatBubble />
     </div>
   );
 }

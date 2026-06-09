@@ -1,16 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  Users,
-  Car,
-  Clock,
-  TrendingUp,
-  AlertCircle,
-  CheckCircle2,
+  Users, Car, Clock, TrendingUp, AlertCircle, CheckCircle2,
+  Calendar, Sparkles, Loader2, Star,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getCurrentUserId } from '../../services/auth';
 import { getUserReservations, ReservationRecord } from '../../services/reservation';
+import {
+  getGlobalRecommendations,
+  getParkingRecommendations,
+  IAGlobalRecommendation,
+  IARecommendation,
+} from '../../services/ia';
 
 const API_URL = (import.meta as ImportMeta & { env: { VITE_API_URL?: string } }).env.VITE_API_URL ?? '';
 
@@ -33,7 +35,6 @@ function getWeekBounds(offsetWeeks: number) {
 function buildChartData(reservations: ReservationRecord[], offsetWeeks: number) {
   const { monday, sunday } = getWeekBounds(offsetWeeks);
 
-  // Count reservations per day (Mon=1 … Sun=0), exclude cancelled
   const countByDay = new Array(7).fill(0);
   for (const r of reservations) {
     if (r.status === 'cancelled') continue;
@@ -43,7 +44,6 @@ function buildChartData(reservations: ReservationRecord[], offsetWeeks: number) 
     }
   }
 
-  // Return Mon → Fri (indices 1–5)
   return [1, 2, 3, 4, 5].map((dayIdx) => ({
     name: DAY_LABELS[dayIdx],
     reservas: countByDay[dayIdx],
@@ -74,18 +74,125 @@ const StatCard = ({ title, value, subtext, icon: Icon, colorClass, trend }: any)
   </motion.div>
 );
 
-const RecommendationCard = ({ title, desc, time, type }: any) => (
-  <div className="flex items-start gap-4 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors">
-    <div className={`p-2 rounded-full ${type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-purple-100 text-purple-600'}`}>
-      {type === 'warning' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
-    </div>
+// ── componentes de IA (de Mauricio) ──────────────────────────────────────────
+
+function trafficInfo(index: number): { color: string; label: string } {
+  if (index <= 0.35) return { color: 'bg-emerald-100 text-emerald-700', label: 'Poco tráfico' };
+  if (index <= 0.65) return { color: 'bg-amber-100 text-amber-700',     label: 'Tráfico moderado' };
+  return                     { color: 'bg-red-100 text-red-700',         label: 'Mucho tráfico' };
+}
+
+function GlobalRecommendationSection({ tipo, label, icon: Icon }: {
+  tipo: 1 | 2 | 3;
+  label: string;
+  icon: React.ElementType;
+}) {
+  const [data, setData]       = useState<IAGlobalRecommendation | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
+
+  useEffect(() => {
+    getGlobalRecommendations(tipo)
+      .then(setData)
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [tipo]);
+
+  return (
     <div>
-      <h4 className="font-semibold text-slate-800 dark:text-slate-200">{title}</h4>
-      <p className="text-sm text-slate-500 mt-1">{desc}</p>
-      <span className="text-xs text-slate-400 mt-2 block">{time}</span>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="p-1.5 bg-purple-100 rounded-lg">
+          <Icon size={15} className="text-purple-600" />
+        </div>
+        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</p>
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-2 text-slate-400 text-sm py-2">
+          <Loader2 size={14} className="animate-spin" /> Consultando modelo...
+        </div>
+      )}
+      {!loading && error && (
+        <div className="flex items-start gap-2 text-red-500 text-xs p-2 bg-red-50 rounded-lg">
+          <AlertCircle size={13} className="mt-0.5 shrink-0" /> No disponible ahora
+        </div>
+      )}
+      {!loading && !error && data && (
+        <div className="space-y-2">
+          {data.best_days_to_attend_ranking.slice(0, 3).map(day => {
+            const { color, label: trafficLabel } = trafficInfo(day.estimated_traffic_index);
+            return (
+              <div key={day.day_id} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {day.position === 1 && <Star size={12} className="text-amber-500 shrink-0" />}
+                  <span className="text-sm text-slate-700 dark:text-slate-300">
+                    {day.position === 1 ? <strong>{day.day_name}</strong> : day.day_name}
+                  </span>
+                </div>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 ${color}`}>{trafficLabel}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+}
+
+function PersonalizedSection({ userId }: { userId: number }) {
+  const [data, setData]       = useState<IARecommendation | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
+
+  useEffect(() => {
+    getParkingRecommendations(userId)
+      .then(setData)
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  if (loading) return (
+    <div className="flex items-center gap-2 text-slate-400 text-sm py-3">
+      <Loader2 size={14} className="animate-spin" /> Cargando tu recomendación...
+    </div>
+  );
+
+  if (error) return (
+    <div className="flex items-start gap-2 text-red-500 text-xs p-2 bg-red-50 rounded-lg">
+      <AlertCircle size={13} className="mt-0.5 shrink-0" /> No disponible ahora
+    </div>
+  );
+
+  if (!data) return null;
+
+  const { parking_recommendation: park, workspace_recommendation: work } = data;
+
+  return (
+    <div className="space-y-3">
+      <div className="p-3 bg-purple-50 rounded-xl border border-purple-100">
+        <div className="flex items-center gap-2 mb-1">
+          <Car size={14} className="text-purple-600 shrink-0" />
+          <p className="text-xs font-semibold text-purple-700">Tu cajón recomendado</p>
+        </div>
+        <p className="text-sm font-bold text-slate-800">{park.space_code} — Zona {park.zone_name}</p>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Mejor día: <strong>{park.best_day_to_attend}</strong>
+        </p>
+      </div>
+
+      <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+        <div className="flex items-center gap-2 mb-1">
+          <Users size={14} className="text-emerald-600 shrink-0" />
+          <p className="text-xs font-semibold text-emerald-700">Tu escritorio recomendado</p>
+        </div>
+        <p className="text-sm font-bold text-slate-800">{work.space_code} — Zona {work.zone_name}</p>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Mejor día: <strong>{work.best_day_to_attend}</strong>
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ── componente principal ──────────────────────────────────────────────────────
 
@@ -96,9 +203,10 @@ export default function Dashboard() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [loadingChart, setLoadingChart] = useState(true);
-  const [weekOffset, setWeekOffset] = useState(0); // 0 = esta semana, -1 = semana pasada
+  const [weekOffset, setWeekOffset] = useState(0);
 
   const currentUserId = getCurrentUserId();
+  const userId = currentUserId ?? 1;
 
   // Carga usuario
   useEffect(() => {
@@ -125,10 +233,8 @@ export default function Dashboard() {
     return () => { mounted = false; };
   }, [currentUserId]);
 
-  // Computa datos de la gráfica según la semana seleccionada
   const chartData = useMemo(() => buildChartData(reservations, weekOffset), [reservations, weekOffset]);
 
-  // Estadísticas rápidas derivadas de reservaciones reales
   const stats = useMemo(() => {
     const active = reservations.filter((r) =>
       ['reserved', 'checked_in', 'checkout_pending'].includes(r.status),
@@ -140,7 +246,6 @@ export default function Dashboard() {
     });
     const checkedOut = reservations.filter((r) => r.status === 'checked_out');
 
-    // Próxima reserva (futura y con status reserved)
     const now = new Date();
     const upcoming = active
       .filter((r) => r.status === 'reserved' && new Date(r.start_time) > now)
@@ -160,6 +265,11 @@ export default function Dashboard() {
     };
   }, [reservations]);
 
+  const today = new Date().toLocaleDateString('es-MX', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  const todayFormatted = today.charAt(0).toUpperCase() + today.slice(1);
+
   const displayName = user.full_name.trim() || 'Usuario';
   const maxReservas = Math.max(...chartData.map((d) => d.reservas), 1);
 
@@ -169,10 +279,10 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            {loadingUser ? 'Cargando...' : `Hola ${displayName}`}
+            {loadingUser ? 'Cargando...' : `Buenos días, ${displayName}`}
           </h1>
           <p className="text-slate-500 dark:text-slate-400">
-            {loadingUser ? 'Estamos recuperando tu información.' : 'Aquí tienes el resumen de tu actividad.'}
+            {loadingUser ? 'Estamos recuperando tu información.' : `Aquí tienes el resumen de hoy, ${todayFormatted}.`}
           </p>
         </div>
       </div>
@@ -238,8 +348,8 @@ export default function Dashboard() {
                 <AreaChart data={chartData}>
                   <defs>
                     <linearGradient id="colorReservas" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#9333ea" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#9333ea" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -253,13 +363,13 @@ export default function Dashboard() {
                   />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    itemStyle={{ color: '#2563eb' }}
+                    itemStyle={{ color: '#9333ea' }}
                     formatter={(value: number) => [value, 'Reservas']}
                   />
                   <Area
                     type="monotone"
                     dataKey="reservas"
-                    stroke="#2563eb"
+                    stroke="#9333ea"
                     strokeWidth={3}
                     fillOpacity={1}
                     fill="url(#colorReservas)"
@@ -276,23 +386,27 @@ export default function Dashboard() {
           ) : null}
         </div>
 
-        {/* Sidebar */}
+        {/* Sidebar con IA */}
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Recomendaciones</h3>
-            <div className="space-y-4">
-              <RecommendationCard
-                title="Reserva con anticipación"
-                desc="Las salas de juntas suelen llenarse rápido entre 9:00 y 11:00 AM."
-                time="Consejo general"
-                type="info"
-              />
-              <RecommendationCard
-                title="Revisa tu próxima reserva"
-                desc="Recuerda hacer check-in desde 15 minutos antes para no perder tu espacio."
-                time="Recordatorio"
-                type="warning"
-              />
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles size={18} className="text-purple-500" />
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Para ti</h3>
+            </div>
+            <PersonalizedSection userId={userId} />
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
+            <div className="flex items-center gap-2 mb-5">
+              <Sparkles size={18} className="text-purple-500" />
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Tendencias globales</h3>
+            </div>
+            <div className="space-y-5">
+              <GlobalRecommendationSection tipo={1} label="Mejores días para estacionar" icon={Car} />
+              <div className="border-t border-slate-100 dark:border-slate-700" />
+              <GlobalRecommendationSection tipo={2} label="Mejores días para escritorio" icon={Users} />
+              <div className="border-t border-slate-100 dark:border-slate-700" />
+              <GlobalRecommendationSection tipo={3} label="Mejores días para sala" icon={Calendar} />
             </div>
           </div>
         </div>
