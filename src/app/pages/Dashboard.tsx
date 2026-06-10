@@ -50,7 +50,6 @@ function buildChartData(reservations: ReservationRecord[], offsetWeeks: number) 
   }));
 }
 
-// ── sub-componentes ───────────────────────────────────────────────────────────
 
 const StatCard = ({ title, value, subtext, icon: Icon, colorClass, trend }: any) => (
   <motion.div
@@ -74,13 +73,6 @@ const StatCard = ({ title, value, subtext, icon: Icon, colorClass, trend }: any)
   </motion.div>
 );
 
-// ── componentes de IA (de Mauricio) ──────────────────────────────────────────
-
-function trafficInfo(index: number): { color: string; label: string } {
-  if (index <= 0.35) return { color: 'bg-emerald-100 text-emerald-700', label: 'Poco tráfico' };
-  if (index <= 0.65) return { color: 'bg-amber-100 text-amber-700',     label: 'Tráfico moderado' };
-  return                     { color: 'bg-red-100 text-red-700',         label: 'Mucho tráfico' };
-}
 
 function GlobalRecommendationSection({ tipo, label, icon: Icon }: {
   tipo: 1 | 2 | 3;
@@ -119,20 +111,16 @@ function GlobalRecommendationSection({ tipo, label, icon: Icon }: {
       )}
       {!loading && !error && data && (
         <div className="space-y-2">
-          {data.best_days_to_attend_ranking.slice(0, 3).map(day => {
-            const { color, label: trafficLabel } = trafficInfo(day.estimated_traffic_index);
-            return (
-              <div key={day.day_id} className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  {day.position === 1 && <Star size={12} className="text-amber-500 shrink-0" />}
-                  <span className="text-sm text-slate-700 dark:text-slate-300">
-                    {day.position === 1 ? <strong>{day.day_name}</strong> : day.day_name}
-                  </span>
-                </div>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 ${color}`}>{trafficLabel}</span>
+          {data.best_days_to_attend_ranking.slice(0, 3).map(day => (
+            <div key={day.day_id} className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {day.position === 1 && <Star size={12} className="text-amber-500 shrink-0" />}
+                <span className="text-sm text-slate-700 dark:text-slate-300">
+                  {day.position === 1 ? <strong>{day.day_name}</strong> : day.day_name}
+                </span>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -194,7 +182,6 @@ function PersonalizedSection({ userId }: { userId: number }) {
   );
 }
 
-// ── componente principal ──────────────────────────────────────────────────────
 
 type DashboardUser = { full_name: string; email: string };
 
