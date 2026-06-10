@@ -56,6 +56,11 @@ function formatTripDate(iso: string) {
   };
 }
 
+function tripDateToInputValue(iso: string) {
+  // 'en-CA' formats as YYYY-MM-DD, matching <input type="date"> values.
+  return new Date(iso).toLocaleDateString('en-CA');
+}
+
 function buildTripDateIso(dateStr: string, timeStr: string) {
   if (!dateStr || !timeStr) return null;
   const combined = new Date(`${dateStr}T${timeStr}`);
@@ -154,6 +159,7 @@ export default function Carpool() {
   const [loadingTrips, setLoadingTrips] = useState(true);
   const [tripsError, setTripsError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
 
   // Per-trip request/cancel action state
   const [actionTripId, setActionTripId] = useState<number | null>(null);
@@ -275,9 +281,12 @@ export default function Carpool() {
           ? trip.origin.toLowerCase().includes(searchQuery.trim().toLowerCase())
           : true,
       )
+      .filter((trip) =>
+        dateFilter ? tripDateToInputValue(trip.trip_date) === dateFilter : true,
+      )
       .sort((a, b) => new Date(a.trip_date).getTime() - new Date(b.trip_date).getTime());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trips, currentUserId, searchQuery]);
+  }, [trips, currentUserId, searchQuery, dateFilter]);
 
   const handleRequestRide = async (trip: CarpoolTrip) => {
     if (!currentUserId) return;
@@ -492,12 +501,12 @@ export default function Carpool() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">WorkHub Carpool</h1>
           <p className="text-slate-500">Comparte tu viaje, reduce el tráfico y gana puntos.</p>
         </div>
-        <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2">
+        <div className="self-start sm:self-auto bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2">
           <Car size={16} /> 250 pts por viaje
         </div>
       </div>
@@ -528,7 +537,7 @@ export default function Carpool() {
         <div className="p-6">
           {activeTab === 'find' ? (
             <div className="space-y-6">
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <div className="flex-1 relative">
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input
@@ -539,12 +548,33 @@ export default function Carpool() {
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
+                <div className="relative sm:w-52">
+                  <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    aria-label="Filtrar por fecha"
+                    className="w-full pl-10 pr-9 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:[color-scheme:dark]"
+                  />
+                  {dateFilter ? (
+                    <button
+                      type="button"
+                      onClick={() => setDateFilter('')}
+                      aria-label="Quitar filtro de fecha"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      <X size={16} />
+                    </button>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   onClick={loadTrips}
-                  className="bg-purple-600 text-white px-6 rounded-xl font-medium hover:bg-purple-700 transition-colors"
+                  className="bg-purple-600 text-white px-6 py-3 sm:py-0 rounded-xl font-medium hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <Search size={20} />
+                  <span className="sm:hidden">Buscar</span>
                 </button>
               </div>
 
@@ -613,7 +643,7 @@ export default function Carpool() {
                   <p className="text-sm text-red-500 text-center py-6">{tripsError}</p>
                 ) : visibleTrips.length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-6">
-                    No hay viajes disponibles por ahora{searchQuery ? ' para esa búsqueda' : ''}.
+                    No hay viajes disponibles por ahora{searchQuery || dateFilter ? ' para esa búsqueda' : ''}.
                   </p>
                 ) : (
                   visibleTrips.map((trip) => {
@@ -693,8 +723,8 @@ export default function Carpool() {
                         </div>
 
                         {trip.meeting_point ? (
-                          <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-sm">
-                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-sm">
+                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 min-w-0">
                               <MapPin size={14} className="shrink-0" />
                               <span>
                                 Punto de encuentro: <span className="text-slate-700 dark:text-slate-300">{trip.meeting_point}</span>
@@ -821,7 +851,7 @@ export default function Carpool() {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Punto de encuentro</label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <div className="flex-1 relative">
                       <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                       <input
@@ -1133,6 +1163,7 @@ export default function Carpool() {
               <button
                 type="button"
                 onClick={() => setShowActiveRideDetails(false)}
+                aria-label="Cerrar"
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
               >
                 <X size={20} />
@@ -1165,8 +1196,8 @@ export default function Carpool() {
               </div>
 
               {myActiveRide.trip.meeting_point ? (
-                <div className="flex items-start justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                  <div className="flex items-start gap-2 text-slate-600 dark:text-slate-300">
+                <div className="flex flex-wrap items-start justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-start gap-2 text-slate-600 dark:text-slate-300 min-w-0">
                     <MapPin size={16} className="text-slate-400 shrink-0 mt-0.5" />
                     <span>Punto de encuentro: <strong>{myActiveRide.trip.meeting_point}</strong></span>
                   </div>
@@ -1271,6 +1302,7 @@ export default function Carpool() {
               <button
                 type="button"
                 onClick={() => setShowRideHistory(false)}
+                aria-label="Cerrar"
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
               >
                 <X size={20} />

@@ -13,6 +13,8 @@ export type GamificationLeaderboardRow = {
   rewardCount: number;
   plannedReservations: number;
   earlyReservations: number;
+  cancellations: number;
+  carpoolTrips: number;
 };
 
 export type GamificationRewardEntry = {

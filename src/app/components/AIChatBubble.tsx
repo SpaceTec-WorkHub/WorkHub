@@ -142,19 +142,20 @@ export default function AIChatBubble() {
             animate={{ opacity: 1, y: 0,  scale: 1 }}
             exit={{   opacity: 0, y: 16, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-            className="fixed bottom-24 right-6 z-50 w-[360px] flex flex-col rounded-2xl overflow-hidden border border-slate-200 bg-white"
-            style={{ maxHeight: '560px', boxShadow: '0 24px 64px rgba(0,0,0,0.16)' }}
+            className="fixed bottom-20 right-4 left-4 sm:left-auto sm:bottom-24 sm:right-6 z-50 w-auto sm:w-[360px] flex flex-col rounded-2xl overflow-hidden border border-slate-200 bg-white"
+            style={{ maxHeight: 'min(560px, 70vh)', boxShadow: '0 24px 64px rgba(0,0,0,0.16)' }}
           >
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 flex items-center gap-3 shrink-0">
+            <div className="bg-gradient-to-r from-purple-700 to-purple-900 px-4 py-3 flex items-center gap-3 shrink-0">
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                 <Sparkles size={15} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white font-semibold text-sm leading-none">Asistente WorkHub</p>
-                <p className="text-blue-200 text-[11px] mt-0.5">Gemini · MCP Navigation</p>
+                <p className="text-purple-200 text-[11px] mt-0.5">Ayuda 24/7</p>
               </div>
               <button
                 onClick={() => setOpen(false)}
+                aria-label="Minimizar chat"
                 className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-colors"
               >
                 <ChevronDown size={17} />
@@ -165,15 +166,15 @@ export default function AIChatBubble() {
               {messages.map(m => (
                 <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {m.role === 'assistant' && (
-                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mr-2 mt-0.5">
-                      <Sparkles size={11} className="text-blue-600" />
+                    <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center shrink-0 mr-2 mt-0.5">
+                      <Sparkles size={11} className="text-purple-600" />
                     </div>
                   )}
                   <div className={`max-w-[76%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
                     m.role === 'user'
-                      ? 'bg-blue-600 text-white rounded-tr-sm'
+                      ? 'bg-purple-600 text-white rounded-tr-sm'
                       : m.isNavigation
-                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-tl-sm font-medium'
+                        ? 'bg-purple-50 text-purple-800 border border-purple-200 rounded-tl-sm font-medium'
                         : 'bg-white text-slate-700 border border-slate-200 shadow-sm rounded-tl-sm'
                   }`}>
                     {m.isNavigation
@@ -186,15 +187,15 @@ export default function AIChatBubble() {
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mr-2 mt-0.5">
-                    <Sparkles size={11} className="text-blue-600" />
+                  <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center shrink-0 mr-2 mt-0.5">
+                    <Sparkles size={11} className="text-purple-600" />
                   </div>
                   <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
                     <div className="flex gap-1.5 items-center h-4">
                       {[0, 150, 300].map(delay => (
                         <span
                           key={delay}
-                          className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"
+                          className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce"
                           style={{ animationDelay: `${delay}ms` }}
                         />
                       ))}
@@ -209,9 +210,9 @@ export default function AIChatBubble() {
                     <button
                       key={label}
                       onClick={() => handleSend(label)}
-                      className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm text-left"
+                      className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-600 hover:border-purple-300 hover:text-purple-600 hover:bg-purple-50 transition-all shadow-sm text-left"
                     >
-                      <Icon size={13} className="shrink-0 text-blue-400" />
+                      <Icon size={13} className="shrink-0 text-purple-400" />
                       {label}
                     </button>
                   ))}
@@ -222,7 +223,7 @@ export default function AIChatBubble() {
             </div>
 
             <div className="px-3 py-3 bg-white border-t border-slate-100 shrink-0">
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus-within:border-purple-400 focus-within:ring-2 focus-within:ring-purple-100 transition-all">
                 <input
                   ref={inputRef}
                   value={input}
@@ -235,7 +236,8 @@ export default function AIChatBubble() {
                 <button
                   onClick={() => handleSend()}
                   disabled={!input.trim() || loading}
-                  className="p-1.5 rounded-lg bg-blue-600 text-white disabled:opacity-40 hover:bg-blue-700 transition-colors shrink-0"
+                  aria-label="Enviar mensaje"
+                  className="p-1.5 rounded-lg bg-purple-600 text-white disabled:opacity-40 hover:bg-purple-700 transition-colors shrink-0"
                 >
                   <Send size={13} />
                 </button>
@@ -249,8 +251,9 @@ export default function AIChatBubble() {
         onClick={() => setOpen(o => !o)}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.93 }}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center transition-colors"
-        style={{ boxShadow: '0 8px 32px rgba(37,99,235,0.42)' }}
+        aria-label={open ? 'Cerrar asistente' : 'Abrir asistente'}
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center transition-colors"
+        style={{ boxShadow: '0 8px 32px rgba(147,51,234,0.42)' }}
       >
         <AnimatePresence mode="wait">
           {open

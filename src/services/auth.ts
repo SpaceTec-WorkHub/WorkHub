@@ -61,6 +61,30 @@ export async function login(email: string, password: string) {
   });
 }
 
+export async function requestPasswordReset(email: string) {
+  return apiRequest<{ message: string }>('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(
+  email: string,
+  code: string,
+  newPassword: string,
+  confirmPassword: string,
+) {
+  return apiRequest<{ message: string }>('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({
+      email,
+      code,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    }),
+  });
+}
+
 export async function registerBasicUser(input: RegisterBasicUserInput) {
   return apiRequest<AuthUser>('/users', {
     method: 'POST',

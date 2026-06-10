@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router";
 import ProtectedLayout from "./components/ProtectedLayout";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
 import MapView from "./pages/Map";
 import Reservation from "./pages/Reservation";
@@ -15,6 +16,10 @@ export const router = createBrowserRouter([
   {
     path: "/login",
     Component: Login,
+  },
+  {
+    path: "/forgot-password",
+    Component: ForgotPassword,
   },
   {
     path: "/",

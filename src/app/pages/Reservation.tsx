@@ -194,7 +194,7 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
             </div>
             <h2 className="mt-1.5 text-base font-bold text-slate-900 dark:text-white">Seleccionar espacio de parking</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-full border border-slate-200 p-2 text-slate-400 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="rounded-full border border-slate-200 p-2 text-slate-400 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
             <X size={16} />
           </button>
         </div>
@@ -232,7 +232,7 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
                     <div className="mb-3 flex items-center gap-3"><div className="rounded-2xl bg-purple-100 p-2.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200"><Building2 size={18} /></div><ChevronRight size={18} className="ml-auto text-slate-300 transition group-hover:translate-x-1 group-hover:text-purple-500" /></div>
                     <h3 className="font-bold text-slate-900 dark:text-white">{building.name}</h3>
                     <p className="mt-1 text-xs text-slate-500">{building.floors.length} piso(s)</p>
-                    <div className="mt-3 flex gap-2 text-[11px] font-semibold"><span className="rounded-full bg-white/80 px-2.5 py-1 text-emerald-700 dark:bg-slate-950/70">{available} libres</span><span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-600 dark:bg-slate-950/70">{all.length - available} no libres</span></div>
+                    <div className="mt-3 flex gap-2 text-[11px] font-semibold"><span className="rounded-full bg-white/80 px-2.5 py-1 text-purple-700 dark:bg-slate-950/70">{available} libres</span><span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-600 dark:bg-slate-950/70">{all.length - available} no libres</span></div>
                   </button>
                 );
               })}
@@ -250,7 +250,7 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
                     <div className="mb-3 flex items-center gap-3"><div className="rounded-2xl bg-purple-100 p-2.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200"><Car size={18} /></div><ChevronRight size={18} className="ml-auto text-slate-300 transition group-hover:translate-x-1 group-hover:text-purple-500" /></div>
                     <h3 className="font-bold text-slate-900 dark:text-white">Piso {floor.name}</h3>
                     <p className="mt-1 text-xs text-slate-500">{floor.zones.length} zona(s)</p>
-                    <div className="mt-3 flex gap-2 text-[11px] font-semibold"><span className="rounded-full bg-white/80 px-2.5 py-1 text-emerald-700 dark:bg-slate-950/70">{available} libres</span><span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-600 dark:bg-slate-950/70">{all.length - available} no libres</span></div>
+                    <div className="mt-3 flex gap-2 text-[11px] font-semibold"><span className="rounded-full bg-white/80 px-2.5 py-1 text-purple-700 dark:bg-slate-950/70">{available} libres</span><span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-600 dark:bg-slate-950/70">{all.length - available} no libres</span></div>
                   </button>
                 );
               })}
@@ -267,7 +267,7 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
                     <div className="mb-3 flex items-center gap-3"><div className="rounded-2xl bg-purple-100 p-2.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200"><Layers3 size={18} /></div><ChevronRight size={18} className="ml-auto text-slate-300 transition group-hover:translate-x-1 group-hover:text-purple-500" /></div>
                     <h3 className="font-bold text-slate-900 dark:text-white">Zona {zone.name}</h3>
                     <p className="mt-1 text-xs text-slate-500">{zone.spaces.length} espacio(s)</p>
-                    <div className="mt-3 flex gap-2 text-[11px] font-semibold"><span className="rounded-full bg-white/80 px-2.5 py-1 text-emerald-700 dark:bg-slate-950/70">{available} libres</span><span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-600 dark:bg-slate-950/70">{zone.spaces.length - available} no libres</span></div>
+                    <div className="mt-3 flex gap-2 text-[11px] font-semibold"><span className="rounded-full bg-white/80 px-2.5 py-1 text-purple-700 dark:bg-slate-950/70">{available} libres</span><span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-600 dark:bg-slate-950/70">{zone.spaces.length - available} no libres</span></div>
                   </button>
                 );
               })}
@@ -296,9 +296,9 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
                       className={clsx(
                         'relative flex h-20 flex-col items-center justify-center gap-1 rounded-2xl border p-2 text-center transition-all duration-200',
                         isAvailable ? 'hover:-translate-y-0.5 hover:shadow-md cursor-pointer' : 'cursor-not-allowed',
-                        effectiveStatus === 'available' ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        effectiveStatus === 'available' ? 'border-purple-200 bg-purple-50 text-purple-800'
                           : effectiveStatus === 'occupied' ? 'border-red-200 bg-red-50 text-red-700 opacity-70'
-                          : effectiveStatus === 'maintenance' ? 'border-purple-200 bg-purple-50 text-purple-700 opacity-70'
+                          : effectiveStatus === 'maintenance' ? 'border-blue-200 bg-blue-50 text-blue-700 opacity-70'
                           : 'border-slate-200 bg-slate-100 text-slate-500 opacity-60',
                         isSelected && 'ring-2 ring-purple-600 ring-offset-2 ring-offset-white dark:ring-offset-slate-900',
                       )}
@@ -316,9 +316,9 @@ function ParkingMapPanel({ isOpen, onClose, selectedParkingId, allSpaces, availa
 
         {/* Leyenda */}
         <div className="flex flex-wrap gap-4 border-t border-slate-100 px-5 py-3 dark:border-slate-800">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700"><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" /> Libre</span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-purple-700"><span className="h-2.5 w-2.5 rounded-full bg-purple-400" /> Libre</span>
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-600"><span className="h-2.5 w-2.5 rounded-full bg-red-400" /> Ocupado</span>
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-purple-700"><span className="h-2.5 w-2.5 rounded-full bg-purple-400" /> Mantenimiento</span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-700"><span className="h-2.5 w-2.5 rounded-full bg-blue-400" /> Mantenimiento</span>
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><span className="h-2.5 w-2.5 rounded-full bg-slate-400" /> Bloqueado</span>
         </div>
       </div>

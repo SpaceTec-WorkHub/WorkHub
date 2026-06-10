@@ -68,16 +68,16 @@ export default function Gamification() {
       <motion.div
         initial={{ scale: 0.96, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-purple-950 to-purple-900 p-8 text-white shadow-2xl"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-purple-950 to-purple-900 p-5 sm:p-8 text-white shadow-2xl"
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.35),transparent_30%)]" />
         <div className="relative z-10 flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex h-24 w-24 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-md">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <div className="flex h-16 w-16 sm:h-24 sm:w-24 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-md">
               <Trophy size={48} className="text-amber-300" />
             </div>
             <div>
-              <h2 className="text-4xl font-bold">{currentUser?.points?.toLocaleString() ?? '0'}</h2>
+              <h2 className="text-3xl sm:text-4xl font-bold">{currentUser?.points?.toLocaleString() ?? '0'}</h2>
               <p className="font-medium text-purple-100">Tus puntos esta quincena</p>
               <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs">
                 <TrendingUp size={12} /> Posición #{currentUser?.rank ?? '-'} de {summary.leaderboard.length}
@@ -123,6 +123,7 @@ export default function Gamification() {
                 <th className="px-6 py-3">Puntos</th>
                 <th className="px-6 py-3">Reservas</th>
                 <th className="px-6 py-3">Check-ins</th>
+                <th className="px-6 py-3">Carpool</th>
                 <th className="px-6 py-3">Premios</th>
               </tr>
             </thead>
@@ -155,6 +156,7 @@ export default function Gamification() {
                     <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{row.points}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{row.reservations}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{row.checkIns}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{row.carpoolTrips}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{row.rewardCount}</td>
                   </tr>
                 );

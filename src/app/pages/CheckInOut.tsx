@@ -92,7 +92,7 @@ function AlternativeSpaceSelector({
               {format(new Date(startTime), 'dd/MM/yyyy HH:mm')} – {format(new Date(endTime), 'HH:mm')} · Selecciona uno para hacer la nueva reserva, o cierra si no es necesario.
             </p>
           </div>
-          <button type="button" onClick={onDismiss} className="rounded-full border border-slate-200 p-2 text-slate-400 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
+          <button type="button" onClick={onDismiss} aria-label="Cerrar" className="rounded-full border border-slate-200 p-2 text-slate-400 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">
             <X size={16} />
           </button>
         </div>
@@ -529,7 +529,7 @@ export default function CheckInOut() {
                       </div>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-4">
+                    <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
                       <button
                         onClick={handleCheckIn}
                         disabled={!canCheckInWindow || actionLoading}
@@ -663,11 +663,10 @@ export default function CheckInOut() {
         </div>
 
         <div className="lg:col-span-5 space-y-6">
-          <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 p-6 text-white shadow-sm">
-            <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-cyan-500/15 blur-3xl" />
-            <div className="absolute left-0 bottom-0 h-40 w-40 rounded-full bg-fuchsia-500/10 blur-3xl" />
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-purple-950 to-purple-900 p-6 text-white shadow-2xl">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.35),transparent_30%)]" />
 
-            <div className="relative flex items-start justify-between gap-4">
+            <div className="relative z-10 flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Validación</p>
                 <h2 className="mt-2 text-2xl font-bold">Geolocalización obligatoria</h2>

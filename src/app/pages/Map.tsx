@@ -48,10 +48,24 @@ const statusLabel: Record<SpaceStatus, string> = {
 };
 
 const statusTone: Record<SpaceStatus, string> = {
-  available: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300 hover:bg-emerald-100 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-900/10 cursor-pointer',
+  available: 'border-purple-200 bg-purple-50 text-purple-800 hover:border-purple-300 hover:bg-purple-100 hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-900/10 cursor-pointer',
   occupied: 'border-red-200 bg-red-50 text-red-700 cursor-not-allowed opacity-80',
-  maintenance: 'border-purple-200 bg-purple-50 text-purple-700 cursor-not-allowed opacity-80',
+  maintenance: 'border-blue-200 bg-blue-50 text-blue-700 cursor-not-allowed opacity-80',
   blocked: 'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed opacity-70',
+};
+
+const stageOrder: Record<Stage, number> = { building: 0, floor: 1, zone: 2, space: 3 };
+
+const getBreadcrumbTone = (current: Stage, target: Stage) => {
+  if (current === target) {
+    return 'bg-purple-600 text-white cursor-default';
+  }
+
+  if (stageOrder[target] < stageOrder[current]) {
+    return 'bg-white text-slate-500 hover:bg-purple-100 hover:text-purple-700 cursor-pointer dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-purple-900/40 dark:hover:text-purple-200';
+  }
+
+  return 'bg-white text-slate-300 cursor-not-allowed dark:bg-slate-900 dark:text-slate-600';
 };
 
 const compareByName = (left: { name: string }, right: { name: string }) => collator.compare(left.name, right.name);
@@ -282,7 +296,7 @@ function HierarchyCard({
       className={`group rounded-3xl border bg-white p-4 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-xl dark:bg-slate-900 ${statusTone[accent]}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className={`rounded-2xl p-3 transition-transform duration-200 group-hover:scale-105 ${accent === 'available' ? 'bg-emerald-100 text-emerald-700' : accent === 'occupied' ? 'bg-red-100 text-red-700' : accent === 'maintenance' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
+        <div className={`rounded-2xl p-3 transition-transform duration-200 group-hover:scale-105 ${accent === 'available' ? 'bg-purple-100 text-purple-700' : accent === 'occupied' ? 'bg-red-100 text-red-700' : accent === 'maintenance' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
           {icon}
         </div>
         <ChevronRight size={18} className="mt-1 text-slate-300 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-slate-500" />
@@ -290,9 +304,9 @@ function HierarchyCard({
       <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-white">{title}</h3>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
       <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wider">
-        <span className="rounded-full bg-white/80 px-2.5 py-1 text-emerald-700 dark:bg-slate-950/70">{stats.available} libres</span>
+        <span className="rounded-full bg-white/80 px-2.5 py-1 text-purple-700 dark:bg-slate-950/70">{stats.available} libres</span>
         <span className="rounded-full bg-white/80 px-2.5 py-1 text-red-700 dark:bg-slate-950/70">{stats.occupied} ocupados</span>
-        <span className="rounded-full bg-white/80 px-2.5 py-1 text-purple-700 dark:bg-slate-950/70">{stats.maintenance} mant.</span>
+        <span className="rounded-full bg-white/80 px-2.5 py-1 text-blue-700 dark:bg-slate-950/70">{stats.maintenance} mant.</span>
         <span className="rounded-full bg-white/80 px-2.5 py-1 text-slate-600 dark:bg-slate-950/70">{stats.blocked} bloqueados</span>
       </div>
     </button>
@@ -765,6 +779,24 @@ export default function MapView() {
     setSelectedSpace(null);
   };
 
+  const goToParkingBuilding = () => {
+    setParkingNavStage('building');
+    setParkingBuildingId(null);
+    setParkingFloorId(null);
+    setParkingZoneId(null);
+  };
+
+  const goToParkingFloor = () => {
+    setParkingNavStage('floor');
+    setParkingFloorId(null);
+    setParkingZoneId(null);
+  };
+
+  const goToParkingZone = () => {
+    setParkingNavStage('zone');
+    setParkingZoneId(null);
+  };
+
   const selectBuilding = (building: MapBuilding) => {
     setSelectedBuildingId(building.building_id);
     const firstFloor = building.floors[0] ?? null;
@@ -939,7 +971,7 @@ export default function MapView() {
       ss.reduce((acc, s) => { acc[parkingStatusById.get(s.space_id) ?? s.status] += 1; return acc; }, { available: 0, occupied: 0, maintenance: 0, blocked: 0 });
 
     return (
-      <div className="space-y-5 pb-28">
+      <div className="space-y-5 pb-44">
         {/* Cabecera + selectores de horario */}
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -995,9 +1027,9 @@ export default function MapView() {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:border-slate-800 dark:bg-slate-950/40">
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-400" /> Libre</span>
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-purple-400" /> Libre</span>
             <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-400" /> Ocupado</span>
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-purple-400" /> Mantenimiento</span>
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-blue-400" /> Mantenimiento</span>
             <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-slate-400" /> Bloqueado</span>
             {loadingParkingAvailability && <span className="ml-auto normal-case tracking-normal text-slate-400">Actualizando disponibilidad...</span>}
           </div>
@@ -1034,10 +1066,31 @@ export default function MapView() {
 
           {/* Breadcrumb */}
           <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:border-slate-800 dark:bg-slate-950/40">
-            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'building' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Edificios</span>
-            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'floor' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Pisos</span>
-            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'zone' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Zonas</span>
-            <span className={`rounded-full px-3 py-1 ${parkingNavStage === 'space' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Espacios</span>
+            <button
+              type="button"
+              onClick={goToParkingBuilding}
+              disabled={parkingNavStage === 'building'}
+              className={`rounded-full px-3 py-1 transition ${getBreadcrumbTone(parkingNavStage, 'building')}`}
+            >
+              Edificios
+            </button>
+            <button
+              type="button"
+              onClick={goToParkingFloor}
+              disabled={stageOrder[parkingNavStage] <= stageOrder.floor}
+              className={`rounded-full px-3 py-1 transition ${getBreadcrumbTone(parkingNavStage, 'floor')}`}
+            >
+              Pisos
+            </button>
+            <button
+              type="button"
+              onClick={goToParkingZone}
+              disabled={stageOrder[parkingNavStage] <= stageOrder.zone}
+              className={`rounded-full px-3 py-1 transition ${getBreadcrumbTone(parkingNavStage, 'zone')}`}
+            >
+              Zonas
+            </button>
+            <span className={`rounded-full px-3 py-1 ${getBreadcrumbTone(parkingNavStage, 'space')}`}>Espacios</span>
           </div>
 
           {/* Aviso de conflicto: ya tienes parking propio en ese horario */}
@@ -1170,7 +1223,7 @@ export default function MapView() {
         </div>
 
         {/* Barra inferior de confirmación */}
-        <div className="fixed bottom-4 left-4 right-4 z-40">
+        <div className="fixed bottom-24 left-4 right-4 z-40">
           <div className="mx-auto flex max-w-3xl flex-col gap-4 rounded-2xl bg-slate-950 px-4 py-3.5 text-white shadow-2xl shadow-slate-950/30 ring-1 ring-white/10 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
               <div className="rounded-2xl bg-white/10 p-2.5 text-purple-400">
@@ -1211,9 +1264,10 @@ export default function MapView() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-6 text-white shadow-xl">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="space-y-6 pb-32">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-purple-950 to-purple-900 p-6 text-white shadow-2xl">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.35),transparent_30%)]" />
+        <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">
               <Layers3 size={14} />
@@ -1315,9 +1369,9 @@ export default function MapView() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:border-slate-800 dark:bg-slate-950/40">
-          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-400" /> Libre</span>
+          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-purple-400" /> Libre</span>
           <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-400" /> Ocupado</span>
-          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-purple-400" /> Mantenimiento</span>
+          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-blue-400" /> Mantenimiento</span>
           <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-slate-400" /> Bloqueado</span>
           <span className="ml-auto text-[11px] normal-case tracking-normal text-slate-400">
             {availabilityMessage}
@@ -1386,10 +1440,31 @@ export default function MapView() {
         </div>
 
         <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:border-slate-800 dark:bg-slate-950/40">
-          <span className={`rounded-full px-3 py-1 ${stage === 'building' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Edificios</span>
-          <span className={`rounded-full px-3 py-1 ${stage === 'floor' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Pisos</span>
-          <span className={`rounded-full px-3 py-1 ${stage === 'zone' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Zonas</span>
-          <span className={`rounded-full px-3 py-1 ${stage === 'space' ? 'bg-purple-600 text-white' : 'bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-300'}`}>Espacios</span>
+          <button
+            type="button"
+            onClick={goToBuilding}
+            disabled={stage === 'building'}
+            className={`rounded-full px-3 py-1 transition ${getBreadcrumbTone(stage, 'building')}`}
+          >
+            Edificios
+          </button>
+          <button
+            type="button"
+            onClick={goToFloor}
+            disabled={stageOrder[stage] <= stageOrder.floor}
+            className={`rounded-full px-3 py-1 transition ${getBreadcrumbTone(stage, 'floor')}`}
+          >
+            Pisos
+          </button>
+          <button
+            type="button"
+            onClick={goToZone}
+            disabled={stageOrder[stage] <= stageOrder.zone}
+            className={`rounded-full px-3 py-1 transition ${getBreadcrumbTone(stage, 'zone')}`}
+          >
+            Zonas
+          </button>
+          <span className={`rounded-full px-3 py-1 ${getBreadcrumbTone(stage, 'space')}`}>Espacios</span>
         </div>
 
         {stage === 'building' ? (
@@ -1497,7 +1572,7 @@ export default function MapView() {
                           </div>
                         </div>
                         {effectiveStatus !== 'available' ? (
-                          <div className={`absolute -top-1 -right-1 flex h-6 min-w-6 items-center justify-center rounded-full border border-white px-1.5 text-[10px] font-bold shadow-sm ${effectiveStatus === 'blocked' ? 'bg-slate-100 text-slate-600' : effectiveStatus === 'maintenance' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'}`}>
+                          <div className={`absolute -top-1 -right-1 flex h-6 min-w-6 items-center justify-center rounded-full border border-white px-1.5 text-[10px] font-bold shadow-sm ${effectiveStatus === 'blocked' ? 'bg-slate-100 text-slate-600' : effectiveStatus === 'maintenance' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
                             {statusLabel[effectiveStatus]}
                           </div>
                         ) : null}
@@ -1539,7 +1614,7 @@ export default function MapView() {
       </div>
 
       {selectedSpace && selectedSpaceEffectiveStatus === 'available' ? (
-        <div className="fixed bottom-4 right-4 z-50 w-[min(92vw,22rem)] rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-900/20 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+        <div className="fixed bottom-24 right-4 left-4 sm:left-auto z-50 w-auto sm:w-[min(92vw,22rem)] rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-900/20 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">

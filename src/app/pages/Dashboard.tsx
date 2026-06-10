@@ -322,7 +322,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Gráfica */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
             <div>
               <h3 className="text-lg font-bold text-slate-800 dark:text-white">Reservaciones por día</h3>
               <p className="text-xs text-slate-400 mt-0.5">Lunes a viernes · excluyendo canceladas</p>

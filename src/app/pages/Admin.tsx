@@ -1484,23 +1484,24 @@ export default function Admin() {
       </div>
 
       {spacePickerOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-          <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-2 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900 sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-6 sm:py-5">
               <div>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Seleccionar espacios a bloquear</h3>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">Seleccionar espacios a bloquear</h3>
                 <p className="mt-1 text-sm text-slate-500">Elige uno o varios espacios, luego confirma para volver al formulario.</p>
               </div>
               <button
                 type="button"
                 onClick={() => setSpacePickerOpen(false)}
+                aria-label="Cerrar"
                 className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="flex flex-1 min-h-0 gap-6 p-6">
+            <div className="flex flex-1 min-h-0 flex-col gap-4 p-4 sm:p-6 lg:flex-row lg:gap-6">
               <div className="flex-1 rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <div className="inline-flex rounded-2xl bg-white p-1 shadow-sm dark:bg-slate-900">
@@ -1591,7 +1592,7 @@ export default function Admin() {
                 )}
               </div>
 
-              <aside className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/60">
+              <aside className="w-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/60 lg:max-w-sm">
                 <div className="mb-4 flex items-center gap-2 text-slate-700 dark:text-slate-200">
                   <Monitor size={18} />
                   <h4 className="font-semibold">Selección actual</h4>
@@ -1659,6 +1660,7 @@ export default function Admin() {
                 onClick={() => {
                   setHierarchyManagerOpen(false);
                 }}
+                aria-label="Cerrar"
                 className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 <X size={18} />
@@ -1869,11 +1871,11 @@ export default function Admin() {
       ) : null}
 
       {eventManagerOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm sm:items-center">
-          <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-2 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900 sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-6 sm:py-5">
               <div>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Administrar eventos</h3>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">Administrar eventos</h3>
                 <p className="mt-1 text-sm text-slate-500">Crea, edita y elimina eventos del módulo principal.</p>
               </div>
               <button
@@ -1882,13 +1884,14 @@ export default function Admin() {
                   setEventManagerOpen(false);
                   resetEventForm();
                 }}
+                aria-label="Cerrar"
                 className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="grid flex-1 min-h-0 gap-6 overflow-hidden p-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="grid flex-1 min-h-0 gap-4 overflow-y-auto p-4 sm:gap-6 sm:p-6 lg:grid-cols-[1.1fr_0.9fr] lg:overflow-hidden">
               <div className="max-h-[calc(90vh-8rem)] overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 p-4 pr-2 dark:border-slate-800 dark:bg-slate-950/40">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
@@ -2100,11 +2103,11 @@ export default function Admin() {
       ) : null}
 
       {userNeedManagerOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm sm:items-center">
-          <div className="flex h-[90vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-2 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="flex h-[90vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900 sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-6 sm:py-5">
               <div>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Gestionar Necesidades</h3>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">Gestionar Necesidades</h3>
                 <p className="mt-1 text-sm text-slate-500">Crea, edita y elimina user needs desde este panel.</p>
               </div>
               <button
@@ -2113,13 +2116,14 @@ export default function Admin() {
                   setUserNeedManagerOpen(false);
                   resetUserNeedForm();
                 }}
+                aria-label="Cerrar"
                 className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="grid flex-1 min-h-0 gap-6 overflow-hidden p-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="grid flex-1 min-h-0 gap-4 overflow-y-auto p-4 sm:gap-6 sm:p-6 lg:grid-cols-[1.1fr_0.9fr] lg:overflow-hidden">
               <div className="max-h-[calc(90vh-8rem)] overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 p-4 pr-2 dark:border-slate-800 dark:bg-slate-950/40">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
@@ -2309,11 +2313,11 @@ export default function Admin() {
       ) : null}
 
       {blockManagerOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-          <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-2 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900 sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-6 sm:py-5">
               <div>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Administrar bloqueos</h3>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">Administrar bloqueos</h3>
                 <p className="mt-1 text-sm text-slate-500">Edita horarios o elimina bloqueos existentes.</p>
               </div>
               <button
@@ -2322,13 +2326,14 @@ export default function Admin() {
                   setBlockManagerOpen(false);
                   resetBlockEditor();
                 }}
+                aria-label="Cerrar"
                 className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="grid flex-1 min-h-0 gap-6 p-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="grid flex-1 min-h-0 gap-4 overflow-y-auto p-4 sm:gap-6 sm:p-6 lg:grid-cols-[1.1fr_0.9fr] lg:overflow-hidden">
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
@@ -2605,7 +2610,7 @@ export default function Admin() {
         </div>
         <p className="text-xs text-slate-500 mb-3">Administra usuarios registrados, crea nuevos y abre el panel completo.</p>
         <button
-          className="w-full py-2 bg-slate-700 text-white text-xs font-bold rounded hover:bg-slate-800 transition-colors"
+          className="w-full rounded-lg bg-slate-700 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
           onClick={() => abrirVentanaUsuarios()}
           type="button"
         >
@@ -2627,6 +2632,7 @@ export default function Admin() {
                   setUserManagerOpen(false);
                   resetUserForm();
                 }}
+                aria-label="Cerrar"
                 className="rounded-full border border-slate-200 p-2 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 <X size={18} />
