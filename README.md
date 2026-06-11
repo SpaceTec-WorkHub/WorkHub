@@ -6,8 +6,8 @@
   ## Arquitectura
 
   - **React 18 + TypeScript + Vite** como base del proyecto.
-  - **Estilos**: Tailwind CSS v4, componentes de Material UI (MUI) y primitivas de Radix UI (estilo shadcn) en `src/app/components/ui`.
-  - **Enrutamiento**: `react-router` mediante `createBrowserRouter` (ver [src/app/routes.ts](src/app/routes.ts)). Las rutas protegidas se agrupan bajo `ProtectedLayout`.
+  - **Estilos**: Tailwind CSS v4, componentes de Material UI (MUI).
+6  - **Enrutamiento**: `react-router` mediante `createBrowserRouter` (ver [src/app/routes.ts](src/app/routes.ts)). Las rutas protegidas se agrupan bajo `ProtectedLayout`.
   - **Capa de servicios** (`src/services`): clientes HTTP hacia el backend (NestJS). La URL base se toma del environment, ver [src/services/api.ts](src/services/api.ts).
   - **Providers globales**: `ToastProvider` y `ConfirmProvider` envuelven la aplicación en [src/app/App.tsx](src/app/App.tsx) para notificaciones y diálogos de confirmación.
   - **Layouts**: `ProtectedLayout` (control de acceso) y `DashboardLayout` (estructura visual del panel principal).
@@ -30,7 +30,7 @@
   npm run build
   ```
 
-  La app de desarrollo corre en `http://localhost:5173`.
+  La app de desarrollo corre en `https://work-hub-theta.vercel.app`.
 
   Credenciales de demo (entorno en línea):
   - Usuario: `admin@workhub.local`
