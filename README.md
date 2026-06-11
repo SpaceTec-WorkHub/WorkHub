@@ -1,5 +1,5 @@
 
-  # WorkHub MTY UI Prototype
+  # WorkHub MTY
 
   Frontend de **WorkHub**, construido con React + TypeScript + Vite.
 
