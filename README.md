@@ -3,6 +3,22 @@
 
   Frontend de **WorkHub**, construido con React + TypeScript + Vite.
 
+  ## ¿Qué es WorkHub?
+
+  WorkHub es una plataforma para gestionar espacios de trabajo en oficinas con esquema híbrido (escritorios, salas de reuniones y estacionamientos). Permite a los colaboradores reservar y administrar su día en la oficina, y al equipo administrador gestionar la disponibilidad de espacios y usuarios.
+
+  ### Funcionalidades principales
+
+  - **Inicio de sesión y perfil**: autenticación de usuarios, recuperación de contraseña y gestión de datos personales y de vehículo (`Login`, `ForgotPassword`, `Profile`).
+  - **Dashboard**: vista general con estadísticas de uso, próximas reservas y recomendaciones generadas por IA (`Dashboard`).
+  - **Mapa interactivo**: exploración de edificios, pisos y zonas para visualizar la disponibilidad de escritorios, salas y lugares de estacionamiento (`Map` / `MapView`).
+  - **Reservas**: creación de reservas de espacios (escritorio, sala de reuniones o estacionamiento) y consulta del historial de reservas anteriores (`Reservation`, `ReservationHistory`).
+  - **Check-in / Check-out**: confirmación de llegada y salida de un espacio reservado (incluye QR/geolocalización), extensión de reservas y reporte de incidentes (`CheckInOut`).
+  - **Carpool**: publicación y búsqueda de viajes compartidos hacia/desde la oficina, con seguimiento del estado del viaje (`Carpool`).
+  - **Gamificación**: sistema de puntos, insignias y tabla de clasificación que incentiva el buen uso de los espacios y la asistencia (`Gamification`).
+  - **Asistente de IA**: burbuja de chat disponible en toda la aplicación que ofrece recomendaciones de espacios/estacionamiento y ayuda de navegación (`AIChatBubble`).
+  - **Panel de administración**: gestión de edificios, pisos, zonas, espacios, bloqueos, usuarios y recompensas de gamificación, disponible solo para usuarios administradores (`Admin`, `AdminPanel`).
+
   ## Arquitectura
 
   - **React 18 + TypeScript + Vite** como base del proyecto.
