@@ -70,10 +70,9 @@
 
   El workflow [deploy.yml](.github/workflows/deploy.yml) se ejecuta en cada push a `main`: corre lint y tests, y despliega a Vercel (entorno de producción) usando `vercel build` + `vercel deploy --prebuilt --prod`.
 
-  Requiere configurar los siguientes secretos en el repositorio de GitHub (Settings → Secrets and variables → Actions):
-  - `VERCEL_TOKEN`
-  - `VERCEL_ORG_ID`
-  - `VERCEL_PROJECT_ID`
+  Requiere configurar los siguientes secretos en el repositorio de GitHub (Settings → Secrets and variables → Actions). Mientras no estén configurados, el job de deploy se omite automáticamente (lint y tests siguen corriendo igual):
+  - `VERCEL_TOKEN`: token personal generado en [Vercel → Account Settings → Tokens](https://vercel.com/account/tokens).
+  - `VERCEL_ORG_ID` y `VERCEL_PROJECT_ID`: se obtienen ejecutando `npx vercel link` dentro del proyecto y leyendo el archivo `.vercel/project.json` generado.
 
   ## Enlaces clave
 
