@@ -52,6 +52,29 @@
   - Usuario: `admin@workhub.local`
   - Contraseña: `Admin123!`
 
+  ## CI/CD con GitHub Actions
+
+  El proyecto incluye workflows de GitHub Actions en [.github/workflows](.github/workflows):
+
+  ### Linters
+
+  El workflow [ci.yml](.github/workflows/ci.yml) ejecuta `npm run lint` (ESLint con `typescript-eslint`, `eslint-plugin-react-hooks` y `eslint-plugin-react-refresh`) en cada push y pull request a `main`.
+
+  ### Tests
+
+  El mismo workflow ejecuta `npm run test` (Vitest + Testing Library, entorno `jsdom`). Las pruebas viven junto al código como archivos `*.test.ts`/`*.test.tsx`.
+
+  Tras pasar lint y tests, el job `build` corre `npm run build` para validar que la build de producción (Vite) se genera correctamente.
+
+  ### Deployment
+
+  El workflow [deploy.yml](.github/workflows/deploy.yml) se ejecuta en cada push a `main`: corre lint y tests, y despliega a Vercel (entorno de producción) usando `vercel build` + `vercel deploy --prebuilt --prod`.
+
+  Requiere configurar los siguientes secretos en el repositorio de GitHub (Settings → Secrets and variables → Actions):
+  - `VERCEL_TOKEN`
+  - `VERCEL_ORG_ID`
+  - `VERCEL_PROJECT_ID`
+
   ## Enlaces clave
 
   - Organización del proyecto: https://github.com/SpaceTec-WorkHub/
